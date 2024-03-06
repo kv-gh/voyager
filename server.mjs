@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import ViteExpress from "vite-express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 
@@ -27,12 +28,14 @@ const validLemmyServers = {};
 const badLemmyServers = {};
 
 INITIAL_VALID_LEMMY_SERVERS.forEach(
-  (server) => (validLemmyServers[server] = true)
+  (server) => (validLemmyServers[server] = true),
 );
 
 const app = express();
 
 const PROXY_ENDPOINT = "/api/:actor";
+
+app.use(compression());
 
 app.use(PROXY_ENDPOINT, async (req, res, next) => {
   const actor = req.params.actor;
@@ -101,11 +104,12 @@ app.use(
     router: (req) => `https://${req.params.actor}`,
     changeOrigin: true,
     secure: true,
+    xfwd: true,
     pathRewrite: (path) => path.split("/").slice(3).join("/"),
     onProxyReq: (clientReq, req) => {
       clientReq.setHeader(
         "user-agent",
-        `(${req.hostname}, ${process.env.EMAIL || "hello@wefwef.app"})`
+        `(${req.hostname}, ${process.env.EMAIL || "hello@vger.app"})`,
       );
       clientReq.removeHeader("cookie");
 
@@ -118,36 +122,40 @@ app.use(
         req.path === "pictrs/image" &&
         req.query?.auth
       ) {
-        clientReq.setHeader("cookie", `jwt=${req.query.auth}`);
+        clientReq.setHeader("cookie", `jwt=${req.query.auth}`); // lemmy <=v0.18
+        clientReq.setHeader("Authorization", `Bearer ${req.query.auth}`); // lemmy >=v0.19
         delete req.query.auth;
       }
     },
     onProxyRes: (proxyRes, req, res) => {
       res.removeHeader("cookie");
     },
-  })
+  }),
 );
 
-function transformer(html) {
-  return html.replace(
-    "<!-- runtime_config -->",
-    `<script>${
-      CUSTOM_LEMMY_SERVERS.length
-        ? `window.CUSTOM_LEMMY_SERVERS = ${JSON.stringify(
-            CUSTOM_LEMMY_SERVERS
-          )}`
-        : ""
-    }</script>`
-  );
-}
-
-ViteExpress.config({
-  transformer,
+app.get("/_config", (req, res) => {
+  res.send({
+    customServers: CUSTOM_LEMMY_SERVERS,
+  });
 });
 
 const PORT = process.env.PORT || 5173;
 
+// Tell search engines about new site
+app.use("*", (req, res, next) => {
+  if (req.hostname === "wefwef.app") {
+    res.setHeader(
+      "Link",
+      `<https://vger.app${
+        req.originalUrl === "/" ? "" : req.originalUrl
+      }>; rel="canonical"`,
+    );
+  }
+
+  next();
+});
+
 ViteExpress.listen(app, PORT, () =>
   // eslint-disable-next-line no-console
-  console.log(`Server is on http://localhost:${PORT}`)
+  console.log(`Server is on http://localhost:${PORT}`),
 );

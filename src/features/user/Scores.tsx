@@ -1,9 +1,10 @@
-import styled from "@emotion/styled";
 import { PersonAggregates } from "lemmy-js-client";
 import { formatNumber } from "../../helpers/number";
 import Ago from "../labels/Ago";
 import { useIonAlert } from "@ionic/react";
 import { formatDistanceToNowStrict } from "date-fns";
+import { fixLemmyDateString } from "../../helpers/date";
+import { styled } from "@linaria/react";
 
 const Container = styled.div`
   display: flex;
@@ -35,22 +36,22 @@ export default function Scores({ aggregates, accountCreated }: ScoreProps) {
   const [present] = useIonAlert();
 
   const relativeDate = formatDistanceToNowStrict(
-    new Date(`${accountCreated}Z`),
+    new Date(fixLemmyDateString(accountCreated)),
     {
       addSuffix: false,
-    }
+    },
   );
   const creationDate = new Date(accountCreated);
 
-  const postScore = aggregates.post_score;
-  const commentScore = aggregates.comment_score;
-  const totalScore = postScore + commentScore;
+  const posts = aggregates.post_count;
+  const comments = aggregates.comment_count;
+  const total = posts + comments;
 
   const showScoreAlert = async (focus: "post" | "comment") => {
-    const postPointsLine = `${postScore.toLocaleString()} Post Points`;
-    const commentPointsLine = `${commentScore.toLocaleString()} Comment Points`;
+    const postPointsLine = `${posts.toLocaleString()} Posts`;
+    const commentPointsLine = `${comments.toLocaleString()} Comments`;
 
-    const totalScoreLine = `${totalScore.toLocaleString()} Total Points`;
+    const totalScoreLine = `${total.toLocaleString()} Total Submissions`;
 
     const header = focus === "post" ? postPointsLine : commentPointsLine;
 
@@ -75,16 +76,16 @@ export default function Scores({ aggregates, accountCreated }: ScoreProps) {
             showScoreAlert("comment");
           }}
         >
-          {formatNumber(aggregates.comment_score)}
-          <aside>Comment score</aside>
+          {formatNumber(aggregates.comment_count)}
+          <aside>Comment count</aside>
         </Score>
         <Score
           onClick={() => {
             showScoreAlert("post");
           }}
         >
-          {formatNumber(aggregates.post_score)}
-          <aside>Post score</aside>
+          {formatNumber(aggregates.post_count)}
+          <aside>Post count</aside>
         </Score>
         <Score
           onClick={() => {

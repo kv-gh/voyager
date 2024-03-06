@@ -2,41 +2,72 @@ import {
   IonButton,
   IonButtons,
   IonContent,
-  IonHeader,
   IonIcon,
   IonList,
+  IonLoading,
   IonPage,
   IonRadioGroup,
+  IonReorderGroup,
   IonTitle,
   IonToolbar,
-  useIonModal,
 } from "@ionic/react";
 import { add } from "ionicons/icons";
 import { useAppDispatch, useAppSelector } from "../../store";
-import { changeAccount } from "./authSlice";
-import Login from "./Login";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Account from "./Account";
+import { setAccounts } from "./authSlice";
+import { moveItem } from "../../helpers/array";
+import { loggedInAccountsSelector } from "./authSelectors";
+import AppHeader from "../shared/AppHeader";
 
-interface AccountSwitcherProps {
+type AccountSwitcherProps = {
   onDismiss: (data?: string, role?: string) => void;
-  page: HTMLElement | undefined;
-}
+  onSelectAccount: (account: string) => void;
+  showGuest?: boolean;
+  activeHandle?: string;
+} & (
+  | {
+      allowEdit?: true;
+      presentLogin: () => void;
+    }
+  | {
+      allowEdit: false;
+    }
+);
 
 export default function AccountSwitcher({
   onDismiss,
-  page,
+  onSelectAccount,
+  allowEdit = true,
+  showGuest = true,
+  activeHandle: _activeHandle,
+  ...rest
 }: AccountSwitcherProps) {
+  // presentLogin only exists if allowEdit = false
+  let presentLogin: (() => void) | undefined;
+  if ("presentLogin" in rest) presentLogin = rest.presentLogin;
+
   const dispatch = useAppDispatch();
-  const accounts = useAppSelector((state) => state.auth.accountData?.accounts);
-  const activeHandle = useAppSelector(
-    (state) => state.auth.accountData?.activeHandle
+  const [loading, setLoading] = useState(false);
+  const accounts = useAppSelector(
+    showGuest
+      ? (state) => state.auth.accountData?.accounts
+      : loggedInAccountsSelector,
+  );
+
+  const oldAccountsCountRef = useRef(accounts?.length ?? 0);
+  const appActiveHandle = useAppSelector(
+    (state) => state.auth.accountData?.activeHandle,
   );
   const [editing, setEditing] = useState(false);
 
-  const [login, onDismissLogin] = useIonModal(Login, {
-    onDismiss: (data: string, role: string) => onDismissLogin(data, role),
-  });
+  const [selectedAccount, setSelectedAccount] = useState(
+    _activeHandle ?? appActiveHandle,
+  );
+
+  useEffect(() => {
+    setSelectedAccount(_activeHandle ?? appActiveHandle);
+  }, [_activeHandle, appActiveHandle]);
 
   useEffect(() => {
     if (accounts?.length) return;
@@ -45,13 +76,34 @@ export default function AccountSwitcher({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accounts]);
 
+  useEffect(() => {
+    const newAccountsCount = accounts?.length ?? 0;
+
+    // On new account added, set no longer editing
+    if (newAccountsCount > oldAccountsCountRef.current) {
+      setEditing(false);
+    }
+
+    oldAccountsCountRef.current = newAccountsCount;
+  }, [accounts]);
+
+  const accountEls = accounts?.map((account) => (
+    <Account
+      key={account.handle}
+      account={account}
+      editing={editing}
+      allowEdit={allowEdit}
+    />
+  ));
+
   return (
     <IonPage>
-      <IonHeader>
+      <IonLoading isOpen={loading} />
+      <AppHeader>
         <IonToolbar>
           <IonButtons slot="start">
             {editing ? (
-              <IonButton onClick={() => login({ presentingElement: page })}>
+              <IonButton onClick={() => presentLogin?.()}>
                 <IonIcon icon={add} />
               </IonButton>
             ) : (
@@ -59,32 +111,59 @@ export default function AccountSwitcher({
             )}
           </IonButtons>
           <IonTitle>Accounts</IonTitle>
-          <IonButtons slot="end">
-            {editing ? (
-              <IonButton onClick={() => setEditing(false)}>Done</IonButton>
-            ) : (
-              <IonButton onClick={() => setEditing(true)}>Edit</IonButton>
-            )}
-          </IonButtons>
+          {allowEdit && (
+            <IonButtons slot="end">
+              {editing ? (
+                <IonButton onClick={() => setEditing(false)}>Done</IonButton>
+              ) : (
+                <IonButton onClick={() => setEditing(true)}>Edit</IonButton>
+              )}
+            </IonButtons>
+          )}
         </IonToolbar>
-      </IonHeader>
+      </AppHeader>
       <IonContent>
-        <IonRadioGroup
-          value={activeHandle}
-          onIonChange={(e) => {
-            dispatch(changeAccount(e.target.value));
-          }}
-        >
+        {!editing ? (
+          <IonRadioGroup
+            value={selectedAccount}
+            onIonChange={async (e) => {
+              setLoading(true);
+              const old = selectedAccount;
+              setSelectedAccount(e.target.value);
+
+              try {
+                await onSelectAccount(e.target.value);
+              } catch (error) {
+                setSelectedAccount(old);
+                throw error;
+              } finally {
+                setLoading(false);
+              }
+
+              onDismiss();
+            }}
+          >
+            <IonList>{accountEls}</IonList>
+          </IonRadioGroup>
+        ) : (
           <IonList>
-            {accounts?.map((account) => (
-              <Account
-                key={account.handle}
-                account={account}
-                editing={editing}
-              />
-            ))}
+            <IonReorderGroup
+              onIonItemReorder={(event) => {
+                if (accounts)
+                  dispatch(
+                    setAccounts(
+                      moveItem(accounts, event.detail.from, event.detail.to),
+                    ),
+                  );
+
+                event.detail.complete();
+              }}
+              disabled={false}
+            >
+              {accountEls}
+            </IonReorderGroup>
           </IonList>
-        </IonRadioGroup>
+        )}
       </IonContent>
     </IonPage>
   );

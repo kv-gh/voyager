@@ -1,33 +1,24 @@
-import styled from "@emotion/styled";
-import { IonIcon, IonItem } from "@ionic/react";
-import { chevronDownOutline } from "ionicons/icons";
+import { IonItem } from "@ionic/react";
 import { CommentView } from "lemmy-js-client";
-import { css } from "@emotion/react";
-import React, { useEffect, useRef } from "react";
-import Ago from "../labels/Ago";
-import { maxWidthCss } from "../shared/AppContent";
-import PersonLink from "../labels/links/PersonLink";
-import { ignoreSsrFlag } from "../../helpers/emotion";
-import Vote from "../labels/Vote";
+import React, { MouseEvent, memo, useCallback, useRef } from "react";
 import AnimateHeight from "react-animate-height";
 import CommentContent from "./CommentContent";
-import useKeyPressed from "../../helpers/useKeyPressed";
 import SlidingNestedCommentVote from "../shared/sliding/SlidingNestedCommentVote";
+import { CommentEllipsisHandle } from "./CommentEllipsis";
+import { useAppSelector } from "../../store";
+import Save from "../labels/Save";
+import { ModeratableItemBannerOutlet } from "../moderation/ModeratableItem";
+import ModeratableItem from "../moderation/ModeratableItem";
+import useCanModerate from "../moderation/useCanModerate";
+import { useLongPress } from "use-long-press";
+import { filterEvents } from "../../helpers/longPress";
+import { preventOnClickNavigationBug } from "../../helpers/ionic";
+import { styled } from "@linaria/react";
+import { PositionedContainer } from "./elements/PositionedContainer";
+import { Container } from "./elements/Container";
+import CommentHeader, { isStubComment } from "./CommentHeader";
 
-const rainbowColors = [
-  "#FF0000", // Red
-  "#FF7F00", // Orange
-  "#e1ca00", // Yellow
-  "#00dd00", // Green
-  "#0000FF", // Blue
-  "#4B0082", // Indigo
-  "#8B00FF", // Violet
-  "#FF00FF", // Magenta
-  "#FF1493", // Deep Pink
-  "#00FFFF", // Cyan
-];
-
-const CustomIonItem = styled(IonItem)`
+export const CustomIonItem = styled(IonItem)`
   scroll-margin-bottom: 35vh;
 
   --padding-start: 0;
@@ -36,132 +27,27 @@ const CustomIonItem = styled(IonItem)`
   --min-height: 0;
 `;
 
-const PositionedContainer = styled.div<{
-  depth: number;
-  highlighted: boolean;
-}>`
-  ${maxWidthCss}
-
-  padding: 0.55rem 1rem;
-
-  ${({ highlighted }) =>
-    highlighted &&
-    css`
-      background: var(--ion-color-light);
-    `}
-
-  @media (hover: none) {
-    padding-top: 0.65rem;
-    padding-bottom: 0.65rem;
-  }
-
-  ${({ depth }) =>
-    css`
-      padding-left: calc(0.5rem + ${Math.max(0, depth - 1) * 10}px);
-    `}
-`;
-
-const Container = styled.div<{ depth: number; highlighted?: boolean }>`
-  display: flex;
-
-  position: relative;
-  width: 100%;
-
-  font-size: 0.88em;
+const Content = styled.div`
+  padding-top: 0.35em;
 
   display: flex;
   flex-direction: column;
-
-  ${({ depth }) =>
-    depth > 0 &&
-    css`
-      padding-left: 1rem;
-    `}
-
-  &:before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    filter: brightness(0.7);
-
-    @media (prefers-color-scheme: light) {
-      filter: none;
-    }
-
-    ${({ depth }) =>
-      depth &&
-      css`
-        background: ${rainbowColors[depth % rainbowColors.length]};
-      `}
-  }
-`;
-
-const Header = styled.div`
-  display: flex;
-  align-items: center;
-
-  gap: 0.5rem;
-
-  color: var(--ion-color-medium);
-`;
-
-const StyledPersonLabel = styled(PersonLink)`
-  color: var(--ion-text-color);
-`;
-
-const Content = styled.div<{ keyPressed: boolean }>`
-  padding-top: 0.35rem;
+  gap: 1em;
 
   @media (hover: none) {
-    padding-top: 0.45rem;
+    padding-top: 0.45em;
   }
 
   line-height: 1.25;
-
-  ${({ keyPressed }) =>
-    keyPressed &&
-    css`
-      user-select: text;
-    `}
-
-  > *:first-child ${ignoreSsrFlag} {
-    &,
-    > p:first-child ${ignoreSsrFlag} {
-      margin-top: 0;
-    }
-  }
-  > *:last-child {
-    &,
-    > p:last-child {
-      margin-bottom: 0;
-    }
-  }
-`;
-
-const CollapsedIcon = styled(IonIcon)`
-  font-size: 1.2em;
-`;
-
-const AmountCollapsed = styled.div`
-  font-size: 0.9em;
-  padding: 0.25rem 0.5rem;
-  margin: -0.25rem;
-  border-radius: 1rem;
-  color: var(--ion-color-medium);
-  background: var(--ion-color-light);
 `;
 
 interface CommentProps {
   comment: CommentView;
   highlightedCommentId?: number;
   depth?: number;
-  onClick?: () => void;
+  absoluteDepth?: number;
+  onClick?: (e: MouseEvent) => void;
   collapsed?: boolean;
-  childCount?: number;
-  fullyCollapsed?: boolean;
   routerLink?: string;
 
   /** On profile view, this is used to show post replying to */
@@ -172,97 +58,117 @@ interface CommentProps {
   rootIndex?: number;
 }
 
-export default function Comment({
-  comment,
+export default memo(Comment);
+
+function Comment({
+  comment: commentView,
   highlightedCommentId,
   depth,
+  absoluteDepth,
   onClick,
-  collapsed,
-  childCount,
-  fullyCollapsed,
+  collapsed: _collapsed,
   context,
   routerLink,
   className,
   rootIndex,
 }: CommentProps) {
-  const keyPressed = useKeyPressed();
-  // eslint-disable-next-line no-undef
-  const commentRef = useRef<HTMLIonItemElement>(null);
+  const showCollapsedComment = useAppSelector(
+    (state) => state.settings.general.comments.showCollapsed,
+  );
+  const commentFromStore = useAppSelector(
+    (state) => state.comment.commentById[commentView.comment.id],
+  );
 
-  useEffect(() => {
-    if (highlightedCommentId !== comment.comment.id) return;
+  // Comment from slice might be more up to date, e.g. edits
+  const comment = commentFromStore ?? commentView.comment;
 
-    setTimeout(() => {
-      commentRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-        inline: "nearest",
-      });
-    }, 100);
-  }, [highlightedCommentId, comment]);
+  const canModerate = useCanModerate(commentView.community);
+
+  const commentEllipsisHandleRef = useRef<CommentEllipsisHandle>(null);
+
+  const stub = isStubComment(comment, canModerate);
+
+  const collapsed =
+    (showCollapsedComment || stub) && !commentView.counts.child_count
+      ? false
+      : _collapsed;
+
+  const onCommentLongPress = useCallback(() => {
+    commentEllipsisHandleRef.current?.present();
+  }, []);
+
+  const bind = useLongPress(onCommentLongPress, {
+    threshold: 800,
+    cancelOnMovement: true,
+    filterEvents,
+  });
 
   return (
-    <AnimateHeight duration={200} height={fullyCollapsed ? 0 : "auto"}>
-      <SlidingNestedCommentVote
-        item={comment}
-        className={className}
-        rootIndex={rootIndex}
-        collapsed={!!collapsed}
+    <SlidingNestedCommentVote
+      item={commentView}
+      className={className}
+      rootIndex={rootIndex}
+      collapsed={!!collapsed}
+    >
+      <CustomIonItem
+        routerLink={routerLink}
+        href={undefined}
+        onClick={(e) => {
+          if (preventOnClickNavigationBug(e)) return;
+
+          onClick?.(e);
+        }}
+        className={`comment-${comment.id}`}
+        {...bind()}
       >
-        <CustomIonItem
-          routerLink={routerLink}
-          href={undefined}
-          onClick={() => {
-            if (!keyPressed) onClick?.();
-          }}
-          ref={commentRef}
+        <ModeratableItem
+          itemView={commentView}
+          highlighted={highlightedCommentId === comment.id}
         >
           <PositionedContainer
-            depth={depth || 0}
-            highlighted={highlightedCommentId === comment.comment.id}
+            depth={absoluteDepth === depth ? depth || 0 : (depth || 0) + 1}
           >
-            <Container depth={depth || 0}>
-              <Header>
-                <StyledPersonLabel
-                  person={comment.creator}
-                  opId={comment.post.creator_id}
-                  distinguished={comment.comment.distinguished}
+            <Container depth={absoluteDepth ?? depth ?? 0}>
+              <ModeratableItemBannerOutlet />
+              <div>
+                <CommentHeader
+                  canModerate={canModerate}
+                  commentView={commentView}
+                  comment={comment}
+                  context={context}
+                  collapsed={collapsed}
+                  rootIndex={rootIndex}
+                  commentEllipsisHandleRef={commentEllipsisHandleRef}
                 />
-                <Vote
-                  voteFromServer={comment.my_vote as 1 | 0 | -1 | undefined}
-                  score={comment.counts.score}
-                  id={comment.comment.id}
-                  type="comment"
-                />
-                <div style={{ flex: 1 }} />
-                {!collapsed ? (
-                  <>
-                    <Ago date={comment.comment.published} />
-                  </>
-                ) : (
-                  <>
-                    <AmountCollapsed>{childCount}</AmountCollapsed>
-                    <CollapsedIcon icon={chevronDownOutline} />
-                  </>
-                )}
-              </Header>
 
-              <AnimateHeight duration={200} height={collapsed ? 0 : "auto"}>
-                <Content
-                  keyPressed={keyPressed}
-                  onClick={(e) => {
-                    if (!(e.target instanceof HTMLElement)) return;
-                    if (e.target.nodeName === "A") e.stopPropagation();
-                  }}
+                <AnimateHeight
+                  duration={200}
+                  height={!showCollapsedComment && collapsed ? 0 : "auto"}
                 >
-                  <CommentContent item={comment.comment} />
-                  {context}
-                </Content>
-              </AnimateHeight>
+                  {!stub || context ? (
+                    <Content
+                      onClick={(e) => {
+                        if (!(e.target instanceof HTMLElement)) return;
+                        if (e.target.nodeName === "A") e.stopPropagation();
+                      }}
+                    >
+                      {!stub && (
+                        <CommentContent
+                          item={comment}
+                          showTouchFriendlyLinks={!context}
+                          mdClassName="collapse-md-margins"
+                        />
+                      )}
+                      {context}
+                    </Content>
+                  ) : undefined}
+                </AnimateHeight>
+              </div>
             </Container>
+            <Save type="comment" id={commentView.comment.id} />
           </PositionedContainer>
-        </CustomIonItem>
-      </SlidingNestedCommentVote>
-    </AnimateHeight>
+        </ModeratableItem>
+      </CustomIonItem>
+    </SlidingNestedCommentVote>
   );
 }

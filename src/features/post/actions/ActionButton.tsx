@@ -1,9 +1,13 @@
-import styled from "@emotion/styled";
+import { styled } from "@linaria/react";
 
-export const ActionButton = styled.div`
+export const ActionButton = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
+
+  background: inherit;
+  font-size: inherit;
+  color: inherit;
 
   padding: 0.35rem;
 

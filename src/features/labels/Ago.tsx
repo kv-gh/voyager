@@ -1,4 +1,5 @@
 import { formatDistanceToNowStrict } from "date-fns";
+import { fixLemmyDateString } from "../../helpers/date";
 
 interface AgoProps {
   date: string;
@@ -6,13 +7,18 @@ interface AgoProps {
 }
 
 export default function Ago({ date, className }: AgoProps) {
-  const relativeDate = formatDistanceToNowStrict(new Date(`${date}Z`), {
-    addSuffix: false,
-  });
+  return <span className={className}>{formatRelative(date)}</span>;
+}
 
-  return (
-    <span className={className}>{getRelativeDateString(relativeDate)}</span>
+export function formatRelative(date: string): string {
+  const relativeDate = formatDistanceToNowStrict(
+    new Date(fixLemmyDateString(date)),
+    {
+      addSuffix: false,
+    },
   );
+
+  return getRelativeDateString(relativeDate);
 }
 
 const getRelativeDateString = (relativeDate: string) => {

@@ -1,9 +1,10 @@
-import styled from "@emotion/styled";
 import { IonIcon } from "@ionic/react";
 import { chatbubbleOutline, timeOutline } from "ionicons/icons";
-import { PostAggregates } from "lemmy-js-client";
+import { PostView } from "lemmy-js-client";
 import Ago from "../../labels/Ago";
 import Vote from "../../labels/Vote";
+import { formatNumber } from "../../../helpers/number";
+import { styled } from "@linaria/react";
 
 const Container = styled.div`
   display: flex;
@@ -12,28 +13,17 @@ const Container = styled.div`
 `;
 
 interface PreviewStatsProps {
-  stats: PostAggregates;
-  voteFromServer: number | undefined;
-  published: string;
+  post: PostView;
 }
 
-export default function PreviewStats({
-  stats,
-  voteFromServer,
-  published,
-}: PreviewStatsProps) {
+export default function PreviewStats({ post }: PreviewStatsProps) {
   return (
     <Container>
-      <Vote
-        score={stats.score}
-        voteFromServer={voteFromServer as 1 | 0 | -1 | undefined}
-        id={stats.post_id}
-        type="post"
-      />
+      <Vote item={post} />
       <IonIcon icon={chatbubbleOutline} />
-      {stats.comments}
+      {formatNumber(post.counts.comments)}
       <IonIcon icon={timeOutline} />
-      <Ago date={published} />
+      <Ago date={post.post.published} />
     </Container>
   );
 }

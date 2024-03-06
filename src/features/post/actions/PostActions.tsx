@@ -1,14 +1,11 @@
-import styled from "@emotion/styled";
+import { styled } from "@linaria/react";
 import { IonIcon } from "@ionic/react";
-import {
-  arrowUndoOutline,
-  bookmarkOutline,
-  linkOutline,
-  shareOutline,
-} from "ionicons/icons";
+import { arrowUndoOutline, linkOutline, shareOutline } from "ionicons/icons";
 import { PostView } from "lemmy-js-client";
 import { VoteButton } from "../shared/VoteButton";
 import { ActionButton } from "./ActionButton";
+import { SaveButton } from "../shared/SaveButton";
+import { share } from "../../../helpers/lemmy";
 
 const Container = styled.div`
   display: flex;
@@ -31,17 +28,11 @@ interface PostActionsProps {
 }
 
 export default function PostActions({ post, onReply }: PostActionsProps) {
-  function share() {
-    navigator.share({ url: post.post.ap_id });
-  }
-
   return (
     <Container>
       <VoteButton type="up" postId={post.post.id} />
       <VoteButton type="down" postId={post.post.id} />
-      <ActionButton>
-        <IonIcon icon={bookmarkOutline} />
-      </ActionButton>
+      <SaveButton postId={post.post.id} />
       <ActionButton>
         <Link href={post.post.ap_id} target="_blank" rel="noopener noreferrer">
           <IonIcon icon={linkOutline} />
@@ -51,7 +42,7 @@ export default function PostActions({ post, onReply }: PostActionsProps) {
         <IonIcon icon={arrowUndoOutline} />
       </ActionButton>
       <ActionButton>
-        <IonIcon icon={shareOutline} onClick={share} />
+        <IonIcon icon={shareOutline} onClick={() => share(post.post)} />
       </ActionButton>
     </Container>
   );

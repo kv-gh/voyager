@@ -1,15 +1,17 @@
-import { css } from "@emotion/react";
-import styled from "@emotion/styled";
 import { PrivateMessageView } from "lemmy-js-client";
 import { useAppDispatch, useAppSelector } from "../../../store";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import useClient from "../../../helpers/useClient";
 import { getInboxCounts, receivedMessages } from "../inboxSlice";
 import { useIonViewDidLeave, useIonViewWillEnter } from "@ionic/react";
-import { jwtSelector } from "../../auth/authSlice";
+import { PageContext } from "../../auth/PageContext";
+import { useLongPress } from "use-long-press";
+import Markdown from "../../shared/markdown/Markdown";
+import { styled } from "@linaria/react";
+import { css } from "@linaria/core";
 
-const Container = styled.div<{ type: "sent" | "recieved" }>`
-  position: relative; /* Setup a relative container for our psuedo elements */
+const Container = styled.div`
+  position: relative; /* Setup a relative container for our pseudo elements */
   max-width: min(75%, 400px);
   margin-bottom: 15px;
   padding: 10px 20px;
@@ -24,10 +26,10 @@ const Container = styled.div<{ type: "sent" | "recieved" }>`
 
   --bg: var(--ion-background-color);
   --sentColor: var(--ion-color-primary);
-  --receiveColor: var(--ion-color-medium);
+  --receiveColor: #eee;
 
-  @media (prefers-color-scheme: light) {
-    --receiveColor: #eee;
+  .theme-dark & {
+    --receiveColor: var(--ion-color-medium);
   }
 
   &:before {
@@ -39,6 +41,14 @@ const Container = styled.div<{ type: "sent" | "recieved" }>`
     background-color: var(--bg); /* All tails have the same bg cutout */
   }
 
+  a {
+    color: white;
+  }
+
+  p {
+    margin: unset;
+  }
+
   &:before,
   &:after {
     position: absolute;
@@ -48,46 +58,40 @@ const Container = styled.div<{ type: "sent" | "recieved" }>`
     ); /* height of our bubble "tail" - should match the border-radius above */
     content: "";
   }
+`;
 
-  ${({ type }) => {
-    switch (type) {
-      case "sent":
-        return css`
-          align-self: flex-end;
-          color: white;
-          background: var(--sentColor);
+const sentCss = css`
+  align-self: flex-end;
+  color: white;
+  background: var(--sentColor);
 
-          &:before {
-            right: -7px;
-            background-color: var(--sentColor);
-            border-bottom-left-radius: 16px 14px;
-          }
+  &:before {
+    right: -7px;
+    background-color: var(--sentColor);
+    border-bottom-left-radius: 16px 14px;
+  }
 
-          &:after {
-            right: -26px;
-            border-bottom-left-radius: 10px;
-          }
-        `;
+  &:after {
+    right: -26px;
+    border-bottom-left-radius: 10px;
+  }
+`;
 
-      case "recieved":
-        return css`
-          align-self: flex-start;
-          color: black;
-          background: var(--receiveColor);
+const receivedCss = css`
+  align-self: flex-start;
+  color: black;
+  background: var(--receiveColor);
 
-          &:before {
-            left: -7px;
-            background-color: var(--receiveColor);
-            border-bottom-right-radius: 16px 14px;
-          }
+  &:before {
+    left: -7px;
+    background-color: var(--receiveColor);
+    border-bottom-right-radius: 16px 14px;
+  }
 
-          &:after {
-            left: -26px;
-            border-bottom-right-radius: 10px;
-          }
-        `;
-    }
-  }}
+  &:after {
+    left: -26px;
+    border-bottom-right-radius: 10px;
+  }
 `;
 
 interface MessageProps {
@@ -96,8 +100,10 @@ interface MessageProps {
 
 export default function Message({ message }: MessageProps) {
   const dispatch = useAppDispatch();
+  const { presentReport } = useContext(PageContext);
   const myUserId = useAppSelector(
-    (state) => state.auth.site?.my_user?.local_user_view?.local_user?.person_id
+    (state) =>
+      state.site.response?.my_user?.local_user_view?.local_user?.person_id,
   );
 
   const thisIsMyMessage = message.private_message.creator_id === myUserId;
@@ -105,7 +111,6 @@ export default function Message({ message }: MessageProps) {
     message.private_message.creator_id === message.private_message.recipient_id;
   const [loading, setLoading] = useState(false);
   const client = useClient();
-  const jwt = useAppSelector(jwtSelector);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -113,6 +118,12 @@ export default function Message({ message }: MessageProps) {
 
   useIonViewWillEnter(() => setFocused(true));
   useIonViewDidLeave(() => setFocused(false));
+
+  const onMessageLongPress = useCallback(() => {
+    presentReport(message);
+  }, [message, presentReport]);
+
+  const bind = useLongPress(onMessageLongPress, { cancelOnMovement: true });
 
   useEffect(() => {
     if (
@@ -127,7 +138,6 @@ export default function Message({ message }: MessageProps) {
   }, [focused, message, thisIsMyMessage]);
 
   async function setRead() {
-    if (!jwt) return;
     if (loading) return;
 
     setLoading(true);
@@ -138,7 +148,6 @@ export default function Message({ message }: MessageProps) {
       response = await client.markPrivateMessageAsRead({
         private_message_id: message.private_message.id,
         read: true,
-        auth: jwt,
       });
     } finally {
       setLoading(false);
@@ -149,8 +158,14 @@ export default function Message({ message }: MessageProps) {
   }
 
   return (
-    <Container type={thisIsMyMessage ? "sent" : "recieved"} ref={containerRef}>
-      {message.private_message.content}
+    <Container
+      className={thisIsMyMessage ? sentCss : receivedCss}
+      ref={containerRef}
+      {...bind()}
+    >
+      <Markdown id={`private-message_${message.private_message.id}`}>
+        {message.private_message.content}
+      </Markdown>
     </Container>
   );
 }

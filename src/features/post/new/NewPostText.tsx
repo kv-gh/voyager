@@ -1,56 +1,44 @@
-import styled from "@emotion/styled";
 import {
   IonBackButton,
   IonButton,
   IonButtons,
-  IonContent,
-  IonHeader,
   IonText,
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
-import { useState } from "react";
-import { Centered, Spinner } from "../../auth/Login";
-
-const Container = styled.div`
-  position: absolute;
-  inset: 0;
-
-  display: flex;
-  flex-direction: column;
-`;
-
-const Textarea = styled.textarea`
-  border: 0;
-  background: none;
-  resize: none;
-  outline: 0;
-  padding: 1rem;
-
-  flex: 1 0 0;
-  min-height: 7rem;
-
-  @media (prefers-color-scheme: light) {
-    .ios & {
-      background: var(--ion-item-background);
-    }
-  }
-`;
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
+import { Centered, Spinner } from "../../auth/login/LoginNav";
+import { clearRecoveredText } from "../../../helpers/useTextRecovery";
+import AppHeader from "../../shared/AppHeader";
+import Editor from "../../shared/markdown/editing/Editor";
+import { MarkdownEditorIonContent } from "../../shared/markdown/editing/MarkdownToolbar";
 
 interface NewPostTextProps {
   value: string;
-  setValue: (value: string) => void;
+  setValue: Dispatch<SetStateAction<string>>;
   onSubmit: () => void;
+  editing: boolean;
+  dismiss: () => void;
 }
 
 export default function NewPostText({
   value,
   setValue,
   onSubmit,
+  editing,
+  dismiss,
 }: NewPostTextProps) {
   const [loading, setLoading] = useState(false);
 
+  const [text, setText] = useState(value);
+  const isSubmitDisabled = loading;
+
+  useEffect(() => {
+    setValue(text);
+  }, [setValue, text]);
+
   async function submit() {
+    if (isSubmitDisabled) return;
     setLoading(true);
 
     try {
@@ -58,11 +46,13 @@ export default function NewPostText({
     } finally {
       setLoading(false);
     }
+
+    clearRecoveredText();
   }
 
   return (
     <>
-      <IonHeader>
+      <AppHeader>
         <IonToolbar>
           <IonButtons slot="start">
             <IonBackButton disabled={loading} />
@@ -74,21 +64,26 @@ export default function NewPostText({
             </Centered>
           </IonTitle>
           <IonButtons slot="end">
-            <IonButton strong type="submit" onClick={submit} disabled={loading}>
+            <IonButton
+              strong
+              type="submit"
+              onClick={submit}
+              disabled={isSubmitDisabled}
+            >
               Post
             </IonButton>
           </IonButtons>
         </IonToolbar>
-      </IonHeader>
-      <IonContent>
-        <Container>
-          <Textarea
-            defaultValue={value}
-            onInput={(e) => setValue((e.target as HTMLInputElement).value)}
-            autoFocus
-          />
-        </Container>
-      </IonContent>
+      </AppHeader>
+      <MarkdownEditorIonContent>
+        <Editor
+          text={text}
+          setText={setText}
+          canRecoverText={!editing}
+          onSubmit={submit}
+          onDismiss={dismiss}
+        />
+      </MarkdownEditorIonContent>
     </>
   );
 }

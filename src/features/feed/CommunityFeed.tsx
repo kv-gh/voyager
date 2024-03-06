@@ -9,8 +9,12 @@ interface PostCommentFeed
 export default function CommunityFeed({ ...rest }: PostCommentFeed) {
   const renderItemContent = useCallback(
     (community: CommunityView) => <CommunitySummary community={community} />,
-    []
+    [],
   );
 
-  return <Feed renderItemContent={renderItemContent} {...rest} />;
+  return (
+    <Feed renderItemContent={renderItemContent} getIndex={getIndex} {...rest} />
+  );
 }
+
+const getIndex = (item: CommunityView) => item.community.id;

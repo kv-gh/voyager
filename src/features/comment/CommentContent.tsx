@@ -1,22 +1,38 @@
 import { Comment, Post } from "lemmy-js-client";
 import { useMemo } from "react";
 import CommentMarkdown from "./CommentMarkdown";
+import CommentLinks from "./links/CommentLinks";
+import { useAppSelector } from "../../store";
 
 interface CommentContentProps {
   item: Comment | Post;
+  showTouchFriendlyLinks?: boolean;
+  mdClassName?: string;
 }
 
-export default function CommentContent({ item }: CommentContentProps) {
-  const content = useMemo(() => {
-    if (item.deleted) return <i>deleted by creator</i>;
-    if (item.removed) return <i>removed by mod</i>;
+export default function CommentContent({
+  item,
+  showTouchFriendlyLinks = true,
+  mdClassName,
+}: CommentContentProps) {
+  const touchFriendlyLinks = useAppSelector(
+    (state) => state.settings.general.comments.touchFriendlyLinks,
+  );
 
+  const content = useMemo(() => {
     return (
-      <CommentMarkdown>
-        {"content" in item ? item.content : item.body ?? item.name}
-      </CommentMarkdown>
+      <>
+        <CommentMarkdown className={mdClassName} id={item.ap_id}>
+          {"content" in item ? item.content : item.body ?? item.name}
+        </CommentMarkdown>
+        {showTouchFriendlyLinks && touchFriendlyLinks && (
+          <CommentLinks
+            markdown={"content" in item ? item.content : item.body ?? item.name}
+          />
+        )}
+      </>
     );
-  }, [item]);
+  }, [item, showTouchFriendlyLinks, touchFriendlyLinks, mdClassName]);
 
   return content;
 }

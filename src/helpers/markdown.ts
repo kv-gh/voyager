@@ -1,5 +1,5 @@
 export function findLoneImage(
-  markdown: string
+  markdown: string,
 ): { url: string; altText?: string } | null {
   // Regular expression pattern to match an image markdown syntax
   const imagePattern = /!\[(.*?)\]\((.*?)\)/;
@@ -15,10 +15,17 @@ export function findLoneImage(
     const remainingContent = markdown.slice(match[0].length);
     const hasAdditionalContent = remainingContent.trim().length > 0;
 
-    if (!hasAdditionalContent) {
+    if (!hasAdditionalContent && url) {
       return { url, altText };
     }
   }
 
   return null;
+}
+
+export function quote(markdown: string) {
+  return markdown
+    .split("\n")
+    .map((line) => `> ${line}`)
+    .join("\n");
 }

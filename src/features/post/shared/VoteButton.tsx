@@ -1,29 +1,28 @@
-import styled from "@emotion/styled";
-import { IonIcon, useIonModal, useIonToast } from "@ionic/react";
-import Login from "../../auth/Login";
-import { useContext } from "react";
-import { PageContext } from "../../auth/PageContext";
+import { IonIcon } from "@ionic/react";
+import { useContext, useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "../../../store";
 import { voteOnPost } from "../postSlice";
-import { css } from "@emotion/react";
 import { arrowDownSharp, arrowUpSharp } from "ionicons/icons";
 import { ActionButton } from "../actions/ActionButton";
 import { voteError } from "../../../helpers/toastMessages";
-import { jwtSelector } from "../../auth/authSlice";
+import { PageContext } from "../../auth/PageContext";
+import { isDownvoteEnabledSelector } from "../../auth/siteSlice";
+import { bounceAnimationOnTransition, bounceMs } from "../../shared/animations";
+import { useTransition } from "react-transition-state";
+import { ImpactStyle } from "@capacitor/haptics";
+import useHapticFeedback from "../../../helpers/useHapticFeedback";
+import useAppToast from "../../../helpers/useAppToast";
+import { styled } from "@linaria/react";
 
-export const Item = styled(ActionButton, {
-  shouldForwardProp: (prop) => prop !== "on" && prop !== "activeColor",
-})<{
-  on?: boolean;
-  activeColor?: string;
+const InactiveItem = styled(ActionButton)`
+  ${bounceAnimationOnTransition}
+`;
+
+const ActiveItem = styled(InactiveItem)<{
+  activeColor: string;
 }>`
-  ${({ on, activeColor }) =>
-    on
-      ? css`
-          background: ${activeColor};
-          color: var(--ion-color-primary-contrast);
-        `
-      : undefined}
+  background: ${({ activeColor }) => activeColor};
+  color: var(--ion-color-primary-contrast);
 `;
 
 interface VoteButtonProps {
@@ -32,16 +31,18 @@ interface VoteButtonProps {
 }
 
 export function VoteButton({ type, postId }: VoteButtonProps) {
-  const [present] = useIonToast();
+  const presentToast = useAppToast();
   const dispatch = useAppDispatch();
-  const pageContext = useContext(PageContext);
-  const [login, onDismiss] = useIonModal(Login, {
-    onDismiss: (data: string, role: string) => onDismiss(data, role),
-  });
-  const jwt = useAppSelector(jwtSelector);
+  const vibrate = useHapticFeedback();
+  const { presentLoginIfNeeded } = useContext(PageContext);
+  const downvoteAllowed = useAppSelector(isDownvoteEnabledSelector);
 
   const postVotesById = useAppSelector((state) => state.post.postVotesById);
   const myVote = postVotesById[postId];
+
+  const [state, toggle] = useTransition({
+    timeout: bounceMs,
+  });
 
   const icon = (() => {
     switch (type) {
@@ -70,23 +71,43 @@ export function VoteButton({ type, postId }: VoteButtonProps) {
     }
   })();
 
+  const on = myVote === selectedVote;
+
+  useEffect(() => {
+    if (!on) toggle(false);
+  }, [on, toggle]);
+
+  if (type === "down" && !downvoteAllowed) {
+    return undefined;
+  }
+
+  const Item = on ? ActiveItem : InactiveItem;
+
   return (
     <Item
-      on={myVote === selectedVote}
-      onClick={async () => {
-        if (!jwt) return login({ presentingElement: pageContext.page });
+      activeColor={activeColor}
+      className={state.status}
+      onClick={async (e) => {
+        e.stopPropagation();
+
+        vibrate({ style: ImpactStyle.Light });
+
+        if (presentLoginIfNeeded()) return;
+
+        if (!on) {
+          toggle(true);
+        }
 
         try {
           await dispatch(
-            voteOnPost(postId, myVote === selectedVote ? 0 : selectedVote)
+            voteOnPost(postId, myVote === selectedVote ? 0 : selectedVote),
           );
         } catch (error) {
-          present(voteError);
+          presentToast(voteError);
 
           throw error;
         }
       }}
-      activeColor={activeColor}
     >
       <IonIcon icon={icon} />
     </Item>

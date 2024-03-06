@@ -1,9 +1,8 @@
-import { css } from "@emotion/react";
-import styled from "@emotion/styled";
 import { IonContent } from "@ionic/react";
+import { styled } from "@linaria/react";
 import React from "react";
 
-export const maxWidthCss = css`
+export const maxWidthCss = `
   width: 100%;
   max-width: 700px;
   margin-right: auto;
@@ -17,13 +16,21 @@ export const MaxWidthContainer = styled.div`
 export default function AppContent({
   children,
   scrollY,
+  className,
+  fullscreen = false,
 }: {
   children: React.ReactNode;
   scrollY?: boolean;
+  className?: string;
+  fullscreen?: boolean;
 }) {
   return (
-    <IonContent style={{ width: "100%" }} scrollY={scrollY ?? false} fullscreen>
-      <MaxWidthContainer>{children}</MaxWidthContainer>
+    <IonContent
+      style={{ width: "100%" }}
+      scrollY={scrollY ?? false}
+      fullscreen={fullscreen}
+    >
+      <MaxWidthContainer className={className}>{children}</MaxWidthContainer>
     </IonContent>
   );
 }
