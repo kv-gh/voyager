@@ -1,36 +1,33 @@
-import { IonIcon } from "@ionic/react";
-import { useContext, useEffect } from "react";
-import { useAppDispatch, useAppSelector } from "../../../store";
-import { voteOnPost } from "../postSlice";
-import { arrowDownSharp, arrowUpSharp } from "ionicons/icons";
-import { ActionButton } from "../actions/ActionButton";
-import { voteError } from "../../../helpers/toastMessages";
-import { PageContext } from "../../auth/PageContext";
-import { isDownvoteEnabledSelector } from "../../auth/siteSlice";
-import { bounceAnimationOnTransition, bounceMs } from "../../shared/animations";
-import { useTransition } from "react-transition-state";
 import { ImpactStyle } from "@capacitor/haptics";
-import useHapticFeedback from "../../../helpers/useHapticFeedback";
-import useAppToast from "../../../helpers/useAppToast";
-import { styled } from "@linaria/react";
+import { IonIcon } from "@ionic/react";
+import { arrowDownSharp, arrowUpSharp } from "ionicons/icons";
+import { PostView } from "lemmy-js-client";
+import { useContext, useEffect } from "react";
+import { useTransition } from "react-transition-state";
 
-const InactiveItem = styled(ActionButton)`
-  ${bounceAnimationOnTransition}
-`;
+import { PageContext } from "#/features/auth/PageContext";
+import { isDownvoteEnabledSelector } from "#/features/auth/siteSlice";
+import { ActionButton } from "#/features/post/actions/ActionButton";
+import {
+  bgColorToVariable,
+  VOTE_COLORS,
+} from "#/features/settings/appearance/themes/votesTheme/VotesTheme";
+import { cx, sv } from "#/helpers/css";
+import { getVoteErrorMessage } from "#/helpers/lemmyErrors";
+import useAppToast from "#/helpers/useAppToast";
+import useHapticFeedback from "#/helpers/useHapticFeedback";
+import { useAppDispatch, useAppSelector } from "#/store";
 
-const ActiveItem = styled(InactiveItem)<{
-  activeColor: string;
-}>`
-  background: ${({ activeColor }) => activeColor};
-  color: var(--ion-color-primary-contrast);
-`;
+import { voteOnPost } from "../postSlice";
+
+import styles from "./VoteButton.module.css";
 
 interface VoteButtonProps {
   type: "down" | "up";
-  postId: number;
+  post: PostView;
 }
 
-export function VoteButton({ type, postId }: VoteButtonProps) {
+export function VoteButton({ type, post }: VoteButtonProps) {
   const presentToast = useAppToast();
   const dispatch = useAppDispatch();
   const vibrate = useHapticFeedback();
@@ -38,38 +35,13 @@ export function VoteButton({ type, postId }: VoteButtonProps) {
   const downvoteAllowed = useAppSelector(isDownvoteEnabledSelector);
 
   const postVotesById = useAppSelector((state) => state.post.postVotesById);
-  const myVote = postVotesById[postId];
+  const myVote = postVotesById[post.post.id];
 
-  const [state, toggle] = useTransition({
-    timeout: bounceMs,
-  });
+  const [state, toggle] = useTransition();
 
-  const icon = (() => {
-    switch (type) {
-      case "down":
-        return arrowDownSharp;
-      case "up":
-        return arrowUpSharp;
-    }
-  })();
-
-  const selectedVote = (() => {
-    switch (type) {
-      case "down":
-        return -1;
-      case "up":
-        return 1;
-    }
-  })();
-
-  const activeColor = (() => {
-    switch (type) {
-      case "down":
-        return "var(--ion-color-danger)";
-      case "up":
-        return "var(--ion-color-primary)";
-    }
-  })();
+  const icon = useIcon(type);
+  const selectedVote = useVote(type);
+  const activeColor = useActiveColor(type);
 
   const on = myVote === selectedVote;
 
@@ -81,12 +53,13 @@ export function VoteButton({ type, postId }: VoteButtonProps) {
     return undefined;
   }
 
-  const Item = on ? ActiveItem : InactiveItem;
-
   return (
-    <Item
-      activeColor={activeColor}
-      className={state.status}
+    <ActionButton
+      style={sv({ background: on ? activeColor : undefined })}
+      className={cx(
+        state.status === "entering" && styles.entering,
+        on && styles.active,
+      )}
       onClick={async (e) => {
         e.stopPropagation();
 
@@ -98,18 +71,50 @@ export function VoteButton({ type, postId }: VoteButtonProps) {
           toggle(true);
         }
 
-        try {
-          await dispatch(
-            voteOnPost(postId, myVote === selectedVote ? 0 : selectedVote),
-          );
-        } catch (error) {
-          presentToast(voteError);
+        dispatch(
+          voteOnPost(post, myVote === selectedVote ? 0 : selectedVote),
+        ).catch((error) => {
+          presentToast({
+            color: "danger",
+            message: getVoteErrorMessage(error),
+          });
 
           throw error;
-        }
+        });
       }}
     >
       <IonIcon icon={icon} />
-    </Item>
+    </ActionButton>
   );
+}
+
+function useActiveColor(type: VoteButtonProps["type"]) {
+  const votesTheme = useAppSelector(
+    (state) => state.settings.appearance.votesTheme,
+  );
+
+  switch (type) {
+    case "up":
+      return bgColorToVariable(VOTE_COLORS.UPVOTE[votesTheme]);
+    case "down":
+      return bgColorToVariable(VOTE_COLORS.DOWNVOTE[votesTheme]);
+  }
+}
+
+function useIcon(type: VoteButtonProps["type"]) {
+  switch (type) {
+    case "down":
+      return arrowDownSharp;
+    case "up":
+      return arrowUpSharp;
+  }
+}
+
+function useVote(type: VoteButtonProps["type"]) {
+  switch (type) {
+    case "down":
+      return -1;
+    case "up":
+      return 1;
+  }
 }

@@ -1,44 +1,62 @@
-import { Redirect, RouteProps, useLocation, useParams } from "react-router";
-import { useAppSelector } from "../../store";
-import useIonViewIsVisible from "../../helpers/useIonViewIsVisible";
-import { isInstalled } from "../../helpers/device";
-import { useMemo } from "react";
+import { useLayoutEffect } from "react";
+import { useLocation } from "react-router";
+
+import { isInstalled } from "#/helpers/device";
+import useIonViewIsVisible from "#/helpers/useIonViewIsVisible";
+import { useOptimizedIonRouter } from "#/helpers/useOptimizedIonRouter";
+import { useAppSelector } from "#/store";
 
 export const usingActorRedirect = !isInstalled();
 
-interface ActorRedirectProps {
-  children?: RouteProps["children"];
-}
-
-export default function ActorRedirect({ children }: ActorRedirectProps) {
+export default function ActorRedirect({ children }: React.PropsWithChildren) {
   if (!usingActorRedirect) return <>{children}</>;
 
   return <ActorRedirectEnabled>{children}</ActorRedirectEnabled>;
 }
 
-function ActorRedirectEnabled({ children }: ActorRedirectProps) {
-  const { actor } = useParams<{ actor: string }>();
+function ActorRedirectEnabled({ children }: React.PropsWithChildren) {
   const connectedInstance = useAppSelector(
     (state) => state.auth.connectedInstance,
   );
   const location = useLocation();
   const ionViewIsVisible = useIonViewIsVisible();
+  const router = useOptimizedIonRouter();
 
-  const page = useMemo(() => <>{children}</>, [children]);
+  useLayoutEffect(() => {
+    if (!ionViewIsVisible) return;
 
-  if (!ionViewIsVisible) return page;
-  if (!connectedInstance || !actor) return page;
-  if (connectedInstance === actor) return page;
+    const [first, second, _wrongActor, ...urlEnd] =
+      location.pathname.split("/");
 
-  const [first, second, _wrongActor, ...urlEnd] = location.pathname.split("/");
+    // no need to redirect if url doesn't have actor
+    if (!_wrongActor || !isPotentialActor(_wrongActor)) return;
 
-  // no need to redirect if url doesn't have actor
-  if (!_wrongActor || !_wrongActor.includes(".")) return page;
+    if (!connectedInstance || !_wrongActor) return;
+    if (connectedInstance === _wrongActor) return;
 
-  return (
-    <Redirect
-      to={[first, second, connectedInstance, ...urlEnd].join("/")}
-      push={false}
-    />
-  );
+    requestAnimationFrame(() => {
+      router.push(
+        [first, second, connectedInstance, ...urlEnd].join("/"),
+        "root",
+        "replace",
+      );
+    });
+  }, [
+    children,
+    connectedInstance,
+    ionViewIsVisible,
+    location.pathname,
+    router,
+  ]);
+
+  return children;
+}
+
+function isPotentialActor(host: string) {
+  if (host.includes(".")) return true;
+  if (host.includes(":")) return true;
+
+  if (host.startsWith("localhost")) return true;
+
+  return false;
 }

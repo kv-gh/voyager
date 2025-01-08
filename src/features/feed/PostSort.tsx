@@ -5,6 +5,7 @@ import {
   useIonActionSheet,
 } from "@ionic/react";
 import { OverlayEventDetail } from "@ionic/react/dist/types/components/react-component-lib/interfaces";
+import { startCase } from "es-toolkit";
 import {
   arrowUpCircleOutline,
   barChartOutline,
@@ -18,12 +19,13 @@ import {
   trendingUpOutline,
   trophyOutline,
 } from "ionicons/icons";
+import { PostSortType } from "lemmy-js-client";
 import { useContext } from "react";
-import { startCase } from "lodash";
-import { SortType } from "lemmy-js-client";
-import { scrollUpIfNeeded } from "../../helpers/scrollUpIfNeeded";
-import { AppContext } from "../auth/AppContext";
-import useSupported, { is019Sort } from "../../helpers/useSupported";
+
+import { AppContext } from "#/features/auth/AppContext";
+import { arrayOfAll } from "#/helpers/array";
+import { scrollUpIfNeeded } from "#/helpers/scrollUpIfNeeded";
+
 import {
   calendarNineMonths,
   calendarSingleDay,
@@ -35,11 +37,10 @@ import {
   clockBadgeSix,
   clockBadgeTwelve,
 } from "../icons";
-import { arrayOfAll } from "../../helpers/array";
 
-type ExtendedSortType = SortType | "Top";
+type ExtendedSortType = PostSortType | "Top";
 
-export const ALL_POST_SORTS = arrayOfAll<SortType>()([
+export const ALL_POST_SORTS = arrayOfAll<PostSortType>()([
   "Active",
   "Hot",
   "New",
@@ -94,7 +95,7 @@ const BUTTONS: ActionSheetButton<ExtendedSortType>[] = POST_SORTS.map(
   }),
 );
 
-const TOP_BUTTONS: ActionSheetButton<SortType>[] = TOP_POST_SORTS.map(
+const TOP_BUTTONS: ActionSheetButton<PostSortType>[] = TOP_POST_SORTS.map(
   (sortType) => ({
     text: formatTopLabel(sortType),
     data: sortType,
@@ -103,8 +104,8 @@ const TOP_BUTTONS: ActionSheetButton<SortType>[] = TOP_POST_SORTS.map(
 );
 
 interface PostSortProps {
-  sort: SortType | undefined;
-  setSort: (sort: SortType) => void;
+  sort: PostSortType | undefined;
+  setSort: (sort: PostSortType) => void;
 }
 
 export default function PostSort({ sort, setSort }: PostSortProps) {
@@ -116,31 +117,28 @@ export default function PostSort({ sort, setSort }: PostSortProps) {
   });
 
   return (
-    <IonButton fill="default" onClick={() => sort && present(sort)}>
-      <IonIcon icon={sort ? getSortIcon(sort) : " "} color="primary" />
+    <IonButton onClick={() => sort && present(sort)}>
+      <IonIcon icon={sort ? getSortIcon(sort) : " "} slot="icon-only" />
     </IonButton>
   );
 }
 
-export function useSelectPostSort(onSelected: (sort: SortType) => void) {
+interface Options {
+  title?: string;
+}
+
+export function useSelectPostSort(
+  onSelected: (sort: PostSortType) => void,
+  options?: Options,
+) {
   const [presentInitialSortActionSheet] = useIonActionSheet();
   const [presentTopSortActionSheet] = useIonActionSheet();
 
-  const newSorts = useSupported("v0.19 Sorts");
-
-  const supportedSortButtons = newSorts
-    ? BUTTONS
-    : BUTTONS.filter(({ data }) => !is019Sort(data));
-
-  const supportedTopSortButtons = newSorts
-    ? TOP_BUTTONS
-    : TOP_BUTTONS.filter(({ data }) => !is019Sort(data));
-
-  function present(sort: SortType) {
+  function present(sort: PostSortType) {
     presentInitialSortActionSheet({
-      header: "Sort by...",
+      header: options?.title ?? "Sort by...",
       cssClass: "left-align-buttons",
-      buttons: supportedSortButtons.map((b) => ({
+      buttons: BUTTONS.map((b) => ({
         ...b,
         cssClass: b.data === "Top" ? "detail" : undefined,
         text:
@@ -165,15 +163,15 @@ export function useSelectPostSort(onSelected: (sort: SortType) => void) {
     });
   }
 
-  function presentSelectTop(sort: SortType) {
+  function presentSelectTop(sort: PostSortType) {
     presentTopSortActionSheet({
       header: "Sort by Top for...",
       cssClass: "left-align-buttons",
-      buttons: supportedTopSortButtons.map((b) => ({
+      buttons: TOP_BUTTONS.map((b) => ({
         ...b,
         role: sort === b.data ? "selected" : undefined,
       })),
-      onWillDismiss: (e: CustomEvent<OverlayEventDetail<SortType>>) => {
+      onWillDismiss: (e: CustomEvent<OverlayEventDetail<PostSortType>>) => {
         if (e.detail.data) {
           onSelected(e.detail.data);
         }
@@ -216,8 +214,6 @@ export function getSortIcon(sort: ExtendedSortType): string {
       return barChartOutline;
     case "Old":
       return helpCircleOutline;
-
-    // lemmy v0.19 below
     case "Controversial":
       return skullOutline;
     case "Scaled":
@@ -259,7 +255,7 @@ export function formatTopLabel(sort: (typeof TOP_POST_SORTS)[number]): string {
 }
 
 export function isTopSort(
-  sort: SortType,
+  sort: PostSortType,
 ): sort is (typeof TOP_POST_SORTS)[number] {
   return (TOP_POST_SORTS as unknown as string[]).includes(sort as string);
 }

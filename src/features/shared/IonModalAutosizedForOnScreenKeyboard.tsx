@@ -1,37 +1,44 @@
 import { IonModal } from "@ionic/react";
+import { useDocumentVisibility } from "@mantine/hooks";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import usePageVisibility from "../../helpers/usePageVisibility";
-import { isNative } from "../../helpers/device";
-import { styled } from "@linaria/react";
+
+import { cx, sv } from "#/helpers/css";
+import { isNative } from "#/helpers/device";
+
+import styles from "./IonModalAutosizedForOnScreenKeyboard.module.css";
 
 // TODO it's a bit buggy trying to compute this
 // in realtime with the new post dialog + comment dialogs
 // So hardcode for now
 const FIXED_HEADER_HEIGHT = 56;
 
-const StyledIonModal = styled(IonModal)<{ viewportHeight: number }>`
-  /* Capacitor inside native web view resizes for on-screen keyboard, so we don't need bespoke layout management */
-  ion-content::part(scroll) {
-    max-height: ${({ viewportHeight }) => viewportHeight}px;
-  }
+interface PWAIonModalProps
+  extends Omit<React.ComponentProps<typeof IonModal>, "style"> {
+  viewportHeight: number;
+}
 
-  ion-content .fixed-toolbar-container {
-    max-height: ${({ viewportHeight }) => viewportHeight}px;
-  }
-`;
+function PWAIonModal({ viewportHeight, ...props }: PWAIonModalProps) {
+  return (
+    <IonModal
+      {...props}
+      className={cx(props.className, styles.pwaIonModal)}
+      style={sv({ viewportHeight })}
+    />
+  );
+}
 
-const Modal = isNative() ? IonModal : StyledIonModal;
+const Modal = isNative() ? IonModal : PWAIonModal;
 
 /**
  * This component is only needed for Safari PWAs. It is not necessary for native.
  */
 export default function IonModalAutosizedForOnScreenKeyboard(
-  props: React.ComponentProps<typeof IonModal>,
+  props: Omit<React.ComponentProps<typeof IonModal>, "style">,
 ) {
   const [viewportHeight, setViewportHeight] = useState(
     document.documentElement.clientHeight,
   );
-  const isVisible = usePageVisibility();
+  const documentState = useDocumentVisibility();
 
   const modalRef = useRef<HTMLIonModalElement>(null);
 
@@ -65,7 +72,7 @@ export default function IonModalAutosizedForOnScreenKeyboard(
     if (!props.isOpen) return;
 
     updateViewport();
-  }, [isVisible, updateViewport, props.isOpen]);
+  }, [documentState, updateViewport, props.isOpen]);
 
   useEffect(() => {
     if (!props.isOpen) return;
@@ -113,7 +120,7 @@ function cumulativeOffset(element: HTMLElement) {
   } while (element instanceof HTMLElement);
 
   return {
-    top: top,
-    left: left,
+    top,
+    left,
   };
 }

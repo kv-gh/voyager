@@ -1,24 +1,13 @@
-import { CustomIonItem } from "../Comment";
-import CommentHr from "./CommentHr";
-import { IonIcon } from "@ionic/react";
-import { styled } from "@linaria/react";
+import { IonIcon, IonItem } from "@ionic/react";
 import { chevronUp } from "ionicons/icons";
-import React from "react";
-import { PositionedContainer } from "../elements/PositionedContainer";
-import { Container } from "../elements/Container";
 
-const MoreRepliesBlock = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
+import CommentContainer from "#/features/comment/elements/CommentContainer";
+import { PositionedContainer } from "#/features/comment/elements/PositionedContainer";
 
-  color: var(--ion-color-primary);
-`;
+import CommentHr from "./CommentHr";
 
-const ChevronIcon = styled(IonIcon)`
-  font-size: 1rem;
-`;
+import commentStyles from "../Comment.module.css";
+import styles from "./LoadParentComments.module.css";
 
 interface LoadParentCommentsProps {
   setMaxContext: React.Dispatch<React.SetStateAction<number>>;
@@ -29,20 +18,21 @@ export default function LoadParentComments({
 }: LoadParentCommentsProps) {
   return (
     <>
-      <CustomIonItem
+      <IonItem
+        className={commentStyles.commentItem}
         onClick={() => {
           setMaxContext((maxContext) => maxContext - 5);
         }}
       >
         <PositionedContainer depth={0}>
-          <Container depth={0}>
-            <MoreRepliesBlock>
-              <ChevronIcon icon={chevronUp} />
+          <CommentContainer depth={0}>
+            <div className={styles.moreRepliesBlock}>
+              <IonIcon icon={chevronUp} className={styles.chevronIcon} />
               Load parent comments...
-            </MoreRepliesBlock>
-          </Container>
+            </div>
+          </CommentContainer>
         </PositionedContainer>
-      </CustomIonItem>
+      </IonItem>
       <CommentHr depth={1} />
     </>
   );

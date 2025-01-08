@@ -1,29 +1,35 @@
-import React, {
-  Fragment,
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
 import {
   IonRefresher,
   IonRefresherContent,
   RefresherCustomEvent,
 } from "@ionic/react";
-import { LIMIT as DEFAULT_LIMIT } from "../../services/lemmy";
-import { CenteredSpinner } from "../../routes/pages/posts/PostPage";
-import { pullAllBy } from "lodash";
-import { useSetActivePage } from "../auth/AppContext";
-import EndPost, { EndPostProps } from "./endItems/EndPost";
-import { isSafariFeedHackEnabled } from "../../routes/pages/shared/FeedContent";
-import FeedLoadMoreFailed from "./endItems/FeedLoadMoreFailed";
+import { differenceBy } from "es-toolkit";
+import React, {
+  createContext,
+  Fragment,
+  useCallback,
+  useContext,
+  useEffect,
+  experimental_useEffectEvent as useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { VList, VListHandle } from "virtua";
-import { FeedSearchContext } from "../../routes/pages/shared/CommunityPage";
-import { useAppSelector } from "../../store";
+
+import { useSetActivePage } from "#/features/auth/AppContext";
+import { CenteredSpinner } from "#/features/shared/CenteredSpinner";
+import { FeedSearchContext } from "#/routes/pages/shared/CommunityPage";
+import { isSafariFeedHackEnabled } from "#/routes/pages/shared/FeedContent";
+import { LIMIT as DEFAULT_LIMIT } from "#/services/lemmy";
+import { useAppSelector } from "#/store";
+
+import EndPost, { EndPostProps } from "./endItems/EndPost";
+import FeedLoadMoreFailed from "./endItems/FeedLoadMoreFailed";
 import FetchMore from "./endItems/FetchMore";
+import { useRangeChange } from "./useRangeChange";
+
+const ABORT_REASON_UNMOUNT = "unmount";
 
 type PageData =
   | {
@@ -33,7 +39,10 @@ type PageData =
       page_cursor: string;
     };
 
-export type FetchFn<I> = (pageData: PageData) => Promise<FetchFnResult<I>>;
+export type FetchFn<I> = (
+  pageData: PageData,
+  options?: Pick<RequestInit, "signal">,
+) => Promise<FetchFnResult<I>>;
 
 type FetchFnResult<I> = I[] | { data: I[]; next_page?: string };
 
@@ -70,6 +79,12 @@ export interface FeedProps<I>
   onRemovedFromTop?: (items: I[]) => void;
 
   communityName?: string;
+
+  /**
+   * Run some logic before normal feed refresh
+   * @returns false to skip default feed refresh behavior
+   */
+  onPull?: () => Promise<boolean | void>;
 }
 
 /**
@@ -89,6 +104,7 @@ export default function Feed<I>({
   limit = DEFAULT_LIMIT,
   sortDuration,
   onRemovedFromTop,
+  onPull,
 }: FeedProps<I>) {
   const [page, setPage] = useState<number | string>(0);
   const [numberedPage, setNumberedPage] = useState(0);
@@ -97,8 +113,7 @@ export default function Feed<I>({
   // Loading needs to be initially `undefined` so that IonRefresher is
   // never initially rendered, which breaks pull to refresh on Android
   // See: https://github.com/aeharding/voyager/issues/718
-  const [loading, _setLoading] = useState<boolean | undefined>(undefined);
-  const loadingRef = useRef(false);
+  const [loading, setLoading] = useState<boolean | undefined>(undefined);
 
   const [isListAtTop, setIsListAtTop] = useState(true);
 
@@ -110,7 +125,6 @@ export default function Feed<I>({
   const { setScrolledPastSearch } = useContext(FeedSearchContext);
 
   const startRangeRef = useRef(0);
-  const scrollingRef = useRef(false);
 
   const infiniteScrolling = useAppSelector(
     (state) => state.settings.general.posts.infiniteScrolling,
@@ -124,19 +138,23 @@ export default function Feed<I>({
     [filterFn, items],
   );
 
-  function setLoading(loading: boolean) {
-    _setLoading(loading);
-    loadingRef.current = loading;
-  }
-
   function setAtEnd(atEnd: boolean) {
     _setAtEnd(atEnd);
     atEndRef.current = atEnd;
   }
 
+  const abortControllerRef = useRef<AbortController>();
+
   const fetchMore = useCallback(
     async (refresh = false) => {
-      if (loadingRef.current) return;
+      // previous request must be done before subsequent fetching (existence of abort controller)
+      if (
+        abortControllerRef.current &&
+        !abortControllerRef.current?.signal.aborted
+      )
+        return;
+
+      // Don't fetch more if we're at the end of the feed (unless refreshing)
       if (atEndRef.current && !refresh) return;
 
       setLoading(true);
@@ -149,22 +167,41 @@ export default function Feed<I>({
         return page;
       })();
 
-      let newPageItems: I[];
+      let result;
+
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
 
       try {
-        const result = await fetchFn(withPageData(currentPage));
-        if (Array.isArray(result)) newPageItems = result;
-        else {
-          newPageItems = result.data;
-          if (result.next_page) currentPage = result.next_page;
-        }
+        result = await fetchFn(withPageData(currentPage), {
+          signal: abortController.signal,
+        });
       } catch (error) {
-        setLoadFailed(true);
+        // Aborted requests are expected. Silently return to avoid spamming console with DOM errors
+        // Also don't set loading to false, component will unmount
+        if (
+          abortController.signal.aborted &&
+          abortController.signal.reason === ABORT_REASON_UNMOUNT
+        )
+          return;
 
+        setLoading(false);
+        setLoadFailed(true);
         throw error;
       } finally {
-        setLoading(false);
+        if (abortControllerRef.current === abortController)
+          abortControllerRef.current = undefined;
       }
+
+      let newPageItems;
+
+      if (Array.isArray(result)) newPageItems = result;
+      else {
+        newPageItems = result.data;
+        if (result.next_page) currentPage = result.next_page;
+      }
+
+      setLoading(false);
 
       const filteredNewPageItems = filterOnRxFn
         ? newPageItems.filter(filterOnRxFn)
@@ -177,11 +214,9 @@ export default function Feed<I>({
         setItems(filteredNewPageItems);
       } else {
         setItems((existingItems) => {
-          const newItems = pullAllBy(
-            filteredNewPageItems.slice(),
-            existingItems,
-            getIndex,
-          );
+          const newItems = getIndex
+            ? differenceBy(filteredNewPageItems, existingItems, getIndex)
+            : filteredNewPageItems;
 
           return [...existingItems, ...newItems];
         });
@@ -203,6 +238,12 @@ export default function Feed<I>({
   );
 
   useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort(ABORT_REASON_UNMOUNT);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!itemsRef) return;
 
     itemsRef.current = items;
@@ -222,9 +263,39 @@ export default function Feed<I>({
 
   useSetActivePage(virtuaHandle);
 
+  const onScroll = useRangeChange(
+    virtuaHandle,
+    function onRangeChange(start, end) {
+      updateReadPosts(start, end);
+
+      if (end + 10 > filteredItems.length && !loadFailed && infiniteScrolling) {
+        fetchMore();
+      }
+    },
+  );
+
+  function updateReadPosts(start: number, end: number) {
+    if (start < 0 || end < 0 || (!start && !end)) return; // no items rendered
+
+    // if scrolled down
+    const startOffset = header ? 1 : 0; // header counts as item to VList
+    if (start > startOffset && start > startRangeRef.current) {
+      // emit what was removed
+      onRemovedFromTop?.(
+        filteredItems.slice(
+          startRangeRef.current - startOffset,
+          start - startOffset,
+        ),
+      );
+    }
+
+    startRangeRef.current = start;
+  }
+
+  const fetchMoreEvent = useEffectEvent(fetchMore);
+
   useEffect(() => {
-    fetchMore(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchMoreEvent(true);
   }, [fetchFn]);
 
   const footer = (() => {
@@ -257,6 +328,10 @@ export default function Feed<I>({
 
   async function handleRefresh(event: RefresherCustomEvent) {
     try {
+      if (onPull) {
+        if ((await onPull()) === false) return;
+      }
+
       await fetchMore(true);
     } finally {
       event.detail.complete();
@@ -285,42 +360,11 @@ export default function Feed<I>({
           }
           ref={virtuaHandle}
           style={{ height: "100%" }}
-          onScrollEnd={() => {
-            scrollingRef.current = false;
-          }}
           onScroll={(offset) => {
-            scrollingRef.current = true;
+            onScroll();
+
             setIsListAtTop(offset < 10);
             setScrolledPastSearch(offset > 40);
-          }}
-          onRangeChange={(start, end) => {
-            if (start < 0 || end < 0 || (!start && !end)) return; // no items rendered
-
-            // if scrolled down
-            const startOffset = header ? 1 : 0; // header counts as item to VList
-            if (
-              scrollingRef.current &&
-              start > startOffset &&
-              start > startRangeRef.current
-            ) {
-              // emit what was removed
-              onRemovedFromTop?.(
-                filteredItems.slice(
-                  startRangeRef.current - startOffset,
-                  start - startOffset,
-                ),
-              );
-            }
-
-            startRangeRef.current = start;
-
-            if (
-              end + 10 > filteredItems.length &&
-              !loadFailed &&
-              infiniteScrolling
-            ) {
-              fetchMore();
-            }
           }}
           /* Large posts reflow with image load, so mount to dom a bit sooner */
           overscan={1}

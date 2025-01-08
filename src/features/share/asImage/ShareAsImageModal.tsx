@@ -1,14 +1,20 @@
-import { styled } from "@linaria/react";
-import { CommentView, PostView } from "lemmy-js-client";
-import ShareAsImage from "./ShareAsImage";
-import { MutableRefObject, useEffect, useState } from "react";
-import { IonButtons, IonIcon, IonTitle } from "@ionic/react";
 import {
-  CloseButton,
-  TransparentIonToolbar,
-} from "../../shared/selectorModals/GenericSelectorModal";
+  IonButton,
+  IonButtons,
+  IonIcon,
+  IonTitle,
+  IonToolbar,
+} from "@ionic/react";
 import { close } from "ionicons/icons";
-import AppHeader from "../../shared/AppHeader";
+import { CommentView, PostView } from "lemmy-js-client";
+import { MutableRefObject, useEffect, useState } from "react";
+
+import AppHeader from "#/features/shared/AppHeader";
+
+import ShareAsImage from "./ShareAsImage";
+
+import sharedStyles from "#/features/shared/shared.module.css";
+import styles from "./ShareAsImageModal.module.css";
 
 export type ShareAsImageData =
   | {
@@ -25,10 +31,6 @@ interface SelectTextProps {
   onDismiss: () => void;
 }
 
-const Content = styled.div`
-  background: var(--ion-color-step-50, #f2f2f7);
-`;
-
 export default function ShareAsImageModal({
   dataRef,
   onDismiss,
@@ -40,24 +42,28 @@ export default function ShareAsImageModal({
   }, [dataRef]);
 
   return (
-    <Content>
+    <div className={styles.content}>
       {data && (
         <ShareAsImage
           data={data}
           header={
             <AppHeader>
-              <TransparentIonToolbar>
+              <IonToolbar className={sharedStyles.transparentIonToolbar}>
                 <IonButtons slot="end">
-                  <CloseButton color="medium" onClick={() => onDismiss()}>
+                  <IonButton
+                    className={sharedStyles.closeButton}
+                    color="medium"
+                    onClick={() => onDismiss()}
+                  >
                     <IonIcon icon={close} />
-                  </CloseButton>
+                  </IonButton>
                 </IonButtons>
                 <IonTitle>Preview</IonTitle>
-              </TransparentIonToolbar>
+              </IonToolbar>
             </AppHeader>
           }
         />
       )}
-    </Content>
+    </div>
   );
 }

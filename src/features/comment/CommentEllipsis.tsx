@@ -1,44 +1,50 @@
-import { ellipsisHorizontal } from "ionicons/icons";
-import useCommentActions, { CommentActionsProps } from "./useCommentActions";
-import { ActionButton } from "../post/actions/ActionButton";
 import { IonIcon, IonLoading } from "@ionic/react";
-import { forwardRef, useImperativeHandle } from "react";
-import { styled } from "@linaria/react";
+import { ellipsisHorizontal } from "ionicons/icons";
+import { useContext, useImperativeHandle } from "react";
 
-const StyledIonIcon = styled(IonIcon)`
-  font-size: 1.2em;
-`;
+import { ShareImageContext } from "#/features/share/asImage/ShareAsImage";
+
+import useCommentActions, { CommentActionsProps } from "./useCommentActions";
+
+import styles from "./CommentEllipsis.module.css";
 
 export type CommentEllipsisHandle = Pick<
   ReturnType<typeof useCommentActions>,
   "present"
 >;
 
-export default forwardRef<CommentEllipsisHandle, CommentActionsProps>(
-  function CommentEllipsis(props, ref) {
-    const { present, loading } = useCommentActions(props);
+interface CommentEllipsisProps extends CommentActionsProps {
+  ref: React.RefObject<CommentEllipsisHandle>;
+}
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        present,
-      }),
-      [present],
-    );
+export default function CommentEllipsis({
+  ref,
+  ...props
+}: CommentEllipsisProps) {
+  const { present, loading } = useCommentActions(props);
+  const { capturing } = useContext(ShareImageContext);
 
-    return (
-      <>
-        <IonLoading isOpen={loading} />
-        <ActionButton>
-          <StyledIonIcon
-            icon={ellipsisHorizontal}
-            onClick={(e) => {
-              present();
-              e.stopPropagation();
-            }}
-          />
-        </ActionButton>
-      </>
-    );
-  },
-);
+  useImperativeHandle(
+    ref,
+    () => ({
+      present,
+    }),
+    [present],
+  );
+
+  if (capturing) return; // Hide ellipsis during image capture
+
+  return (
+    <>
+      <IonLoading isOpen={loading} />
+      <IonIcon
+        className={styles.icon}
+        icon={ellipsisHorizontal}
+        onClick={(e) => {
+          present();
+          e.stopPropagation();
+        }}
+      />
+    </>
+  );
+}

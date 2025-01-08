@@ -1,16 +1,19 @@
+import { Share } from "@capacitor/share";
+import { compare } from "compare-versions";
 import {
   Comment,
   CommentView,
   Community,
   CommunityModeratorView,
   GetSiteResponse,
-  LemmyErrorType,
   Post,
   PostView,
 } from "lemmy-js-client";
-import { Share } from "@capacitor/share";
-import { escapeStringForRegex } from "./regex";
+
+import { parseJWT } from "./jwt";
 import { quote } from "./markdown";
+import { escapeStringForRegex } from "./regex";
+import { parseUrl } from "./url";
 
 export interface LemmyJWT {
   sub: number;
@@ -76,7 +79,7 @@ export function buildCommentsTree(
   const map = new Map<number, CommentNodeI>();
   const depthOffset = !parentComment
     ? 0
-    : getDepthFromComment(comments[0]!.comment) ?? 0;
+    : (getDepthFromComment(comments[0]!.comment) ?? 0);
 
   for (const comment_view of comments) {
     const depthI = getDepthFromComment(comment_view.comment) ?? 0;
@@ -133,37 +136,27 @@ export function buildCommentsTreeWithMissing(
 ): CommentNodeI[] {
   const tree = buildCommentsTree(comments, parentComment);
 
-  function childHasMissing(node: CommentNodeI): {
-    missing: boolean;
-    count: number;
-  } {
-    let totalChildren = 0;
-    let missingMarker = false;
-
-    for (const child of node.children) {
-      const res = childHasMissing(child);
-      totalChildren += res.count;
-      if (res.missing) missingMarker = true;
-    }
-
-    const missing =
-      node.comment_view.counts.child_count -
-      node.children.length -
-      totalChildren;
-
-    node.missing = missingMarker ? 0 : missing;
-
-    return {
-      missing: missingMarker || !!missing,
-      count: totalChildren + node.children.length,
-    };
-  }
-
   for (const node of tree) {
     childHasMissing(node);
   }
 
   return tree;
+}
+
+function childHasMissing(node: CommentNodeI) {
+  let missing = node.comment_view.counts.child_count;
+
+  for (const child of node.children) {
+    missing--;
+
+    // the child is responsible for showing missing indicator
+    // if the child has missing comments
+    missing -= child.comment_view.counts.child_count;
+
+    childHasMissing(child);
+  }
+
+  node.missing = missing;
 }
 
 export function getCommentParentId(comment?: Comment): number | undefined {
@@ -264,6 +257,26 @@ export function postHasFilteredKeywords(
   return false;
 }
 
+export function postHasFilteredWebsite(
+  post: Post,
+  websites: string[],
+): boolean {
+  if (!post.url) return false;
+
+  for (const website of websites) {
+    const postUrl = parseUrl(post.url);
+    if (!postUrl) continue;
+
+    if (
+      postUrl.hostname === website ||
+      postUrl.hostname.endsWith(`.${website}`) // match subdomains
+    )
+      return true;
+  }
+
+  return false;
+}
+
 export function keywordFoundInSentence(
   keyword: string,
   sentence: string,
@@ -278,14 +291,6 @@ export function keywordFoundInSentence(
   return pattern.test(sentence);
 }
 
-export type LemmyErrorValue = LemmyErrorType["error"];
-export type OldLemmyErrorValue = never; // When removing support for an old version of Lemmy, cleanup these references
-
-export function isLemmyError(error: unknown, lemmyErrorValue: LemmyErrorValue) {
-  if (!(error instanceof Error)) return;
-  return error.message === lemmyErrorValue;
-}
-
 export function canModerateCommunity(
   communityId: number | undefined,
   moderates: CommunityModeratorView[] | undefined,
@@ -295,14 +300,10 @@ export function canModerateCommunity(
   return moderates.some((m) => m.community.id === communityId);
 }
 
-export function parseJWT(payload: string): LemmyJWT {
-  const base64 = payload.split(".")[1]!;
-  const jsonPayload = atob(base64);
-  return JSON.parse(jsonPayload);
-}
+export const parseLemmyJWT = parseJWT<LemmyJWT>;
 
 const CROSS_POST_REGEX =
-  /^cross-posted from:\s+(https:\/\/(?:[0-9a-z-]+\.?)+\/post\/[0-9]+)/;
+  /^[cC]ross-posted from:\s+(https:\/\/(?:[0-9a-z-]+\.?)+\/post\/[0-9]+)/;
 
 export function getCrosspostUrl(post: Post): string | undefined {
   if (!post.body) return;
@@ -312,42 +313,20 @@ export function getCrosspostUrl(post: Post): string | undefined {
   return matches?.[1];
 }
 
-export function buildCrosspostBody(post: Post): string {
-  const header = `cross-posted from: ${post.ap_id}\n\n${quote(post.name)}`;
+export function buildCrosspostBody(post: Post, includeTitle = true): string {
+  let header = `cross-posted from: ${post.ap_id}`;
+
+  if (includeTitle) {
+    header += `\n\n${quote(post.name)}`;
+  }
 
   if (!post.body) return header;
 
-  return `${header}\n>\n${quote(post.body)}`;
-}
+  header += `\n${includeTitle ? ">" : ""}\n`;
 
-export function getLoginErrorMessage(
-  error: unknown,
-  instanceActorId: string,
-): string {
-  if (!(error instanceof Error))
-    return "Unknown error occurred, please try again.";
+  header += quote(post.body.trim());
 
-  switch (error.message as LemmyErrorValue) {
-    // TODO old lemmy support
-    case "incorrect_totp token" as OldLemmyErrorValue:
-    case "incorrect_totp_token":
-      return "Incorrect 2nd factor code. Please try again.";
-    // TODO old lemmy support
-    case "couldnt_find_that_username_or_email" as OldLemmyErrorValue:
-    case "couldnt_find_person":
-      return `User not found. Is your account on ${instanceActorId}?`;
-    case "password_incorrect" as OldLemmyErrorValue:
-    case "incorrect_login":
-      return `Incorrect login credentials for ${instanceActorId}. Please try again.`;
-    case "email_not_verified":
-      return `Email not verified. Please check your inbox. Request a new verification email from https://${instanceActorId}.`;
-    case "site_ban":
-      return "You have been banned.";
-    case "deleted":
-      return "Account deleted.";
-    default:
-      return "Connection error, please try again.";
-  }
+  return header;
 }
 
 export function isPost(item: PostView | CommentView): item is PostView {
@@ -371,4 +350,10 @@ export function sortPostCommentByPublished(
   b: PostView | CommentView,
 ): number {
   return getPublishedDate(b).localeCompare(getPublishedDate(a));
+}
+
+export const MINIMUM_LEMMY_VERSION = "0.19.0";
+
+export function isMinimumSupportedLemmyVersion(version: string) {
+  return compare(version, MINIMUM_LEMMY_VERSION, ">=");
 }

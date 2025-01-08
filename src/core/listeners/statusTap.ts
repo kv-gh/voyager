@@ -1,5 +1,8 @@
-import { findCurrentPage } from "../../helpers/ionic";
-import { Browser } from "@capacitor/browser";
+import { Reader } from "capacitor-reader";
+import { useEffect } from "react";
+import { useLocation } from "react-router";
+
+import { findCurrentPage } from "#/helpers/ionic";
 
 let savedScrollTop = 0;
 
@@ -12,8 +15,12 @@ export function notifyStatusTapThatBrowserWasOpened() {
   browserOpen = true;
 }
 
-Browser.addListener("browserFinished", () => {
+export function notifyStatusTapThatBrowserWasClosed() {
   browserOpen = false;
+}
+
+Reader.addListener("browserFinished", () => {
+  notifyStatusTapThatBrowserWasClosed();
 });
 
 // statusTap is a capacitor (native app), iOS-only event
@@ -48,4 +55,14 @@ window.addEventListener("statusTap", () => {
 
 export function resetSavedStatusTap() {
   savedScrollTop = 0;
+}
+
+export function ResetStatusTap() {
+  const location = useLocation();
+
+  useEffect(() => {
+    resetSavedStatusTap();
+  }, [location]);
+
+  return null;
 }

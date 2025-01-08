@@ -1,79 +1,49 @@
+import { RefresherCustomEvent } from "@ionic/core";
+import { IonRefresher, IonRefresherContent, IonSpinner } from "@ionic/react";
+import { compact, differenceBy, sortBy, uniqBy } from "es-toolkit";
+import { CommentSortType, CommentView } from "lemmy-js-client";
 import React, {
-  forwardRef,
   useCallback,
   useEffect,
+  experimental_useEffectEvent as useEffectEvent,
   useImperativeHandle,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { VList, VListHandle } from "virtua";
+
+import { useSetActivePage } from "#/features/auth/AppContext";
+import FeedLoadMoreFailed from "#/features/feed/endItems/FeedLoadMoreFailed";
+import { useRangeChange } from "#/features/feed/useRangeChange";
+import { getPost } from "#/features/post/postSlice";
+import { defaultCommentDepthSelector } from "#/features/settings/settingsSlice";
+import { scrollIntoView, useScrollIntoViewWorkaround } from "#/helpers/dom";
 import {
   buildCommentsTreeWithMissing,
   getDepthFromCommentPath,
-} from "../../../helpers/lemmy";
-import CommentTree, { MAX_COMMENT_DEPTH } from "./CommentTree";
-import { IonRefresher, IonRefresherContent, IonSpinner } from "@ionic/react";
-import { CommentSortType, CommentView } from "lemmy-js-client";
-import { pullAllBy, sortBy, uniqBy } from "lodash";
-import { useAppDispatch, useAppSelector } from "../../../store";
+} from "#/helpers/lemmy";
+import useAppToast from "#/helpers/useAppToast";
+import useClient from "#/helpers/useClient";
+import usePreservePositionFromBottomInScrollView from "#/helpers/usePreservePositionFromBottomInScrollView";
+import { IndexedVirtuaItem } from "#/helpers/virtua";
+import { postDetailPageHasVirtualScrollEnabled } from "#/routes/pages/posts/PostPage";
+import { isSafariFeedHackEnabled } from "#/routes/pages/shared/FeedContent";
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { receivedComments } from "../commentSlice";
-import { RefresherCustomEvent } from "@ionic/core";
-import { getPost } from "../../post/postSlice";
-import useClient from "../../../helpers/useClient";
-import { useSetActivePage } from "../../auth/AppContext";
 import { CommentsContext } from "./CommentsContext";
-import { defaultCommentDepthSelector } from "../../settings/settingsSlice";
-import { isSafariFeedHackEnabled } from "../../../routes/pages/shared/FeedContent";
-import useAppToast from "../../../helpers/useAppToast";
-import { VList, VListHandle } from "virtua";
+import CommentTree, { MAX_COMMENT_DEPTH } from "./CommentTree";
 import LoadParentComments from "./LoadParentComments";
-import {
-  scrollIntoView as scrollIntoView,
-  useScrollIntoViewWorkaround,
-} from "../../../helpers/dom";
-import { IndexedVirtuaItem } from "../../../helpers/virtua";
-import FeedLoadMoreFailed from "../../feed/endItems/FeedLoadMoreFailed";
-import usePreservePositionFromBottomInScrollView from "../../../helpers/usePreservePositionFromBottomInScrollView";
-import { postDetailPageHasVirtualScrollEnabled } from "../../../routes/pages/posts/PostPage";
-import { styled } from "@linaria/react";
 
-const ScrollViewContainer = styled.div`
-  width: 100%;
-  height: 100%;
-`;
-
-const centerCss = `
-  position: relative;
-  padding: 4rem 0 4rem;
-  left: 50%;
-  transform: translateX(-50%);
-`;
-
-const StyledIonSpinner = styled(IonSpinner)`
-  ${centerCss}
-  opacity: 0.7;
-`;
-
-const Empty = styled.div`
-  ${centerCss}
-
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  text-align: center;
-
-  aside {
-    color: var(--ion-color-medium);
-    font-size: 0.8em;
-  }
-`;
+import styles from "./Comments.module.css";
 
 const MAX_COMMENT_PATH_CONTEXT_DEPTH = 2;
 
-export type CommentsHandle = {
+export interface CommentsHandle {
   appendComments: (comments: CommentView[]) => void;
   prependComments: (comments: CommentView[]) => void;
-};
+}
 
 interface CommentsProps {
   header: React.ReactNode;
@@ -82,12 +52,19 @@ interface CommentsProps {
   threadCommentId?: string;
   sort: CommentSortType;
   bottomPadding?: number;
+
+  ref: React.RefObject<CommentsHandle>;
 }
 
-export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
-  { header, postId, commentPath, sort, bottomPadding, threadCommentId },
+export default function Comments({
+  header,
+  postId,
+  commentPath,
+  sort,
+  bottomPadding,
+  threadCommentId,
   ref,
-) {
+}: CommentsProps) {
   const dispatch = useAppDispatch();
   const [page, setPage] = useState(0);
   const [loading, _setLoading] = useState(true);
@@ -138,7 +115,6 @@ export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
   })();
 
   const highlightedCommentId = (() => {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     if (commentPath) return +commentPath.split(".").pop()!;
     if (threadCommentId) return +threadCommentId;
     return undefined;
@@ -189,9 +165,9 @@ export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
     // but since we're only viewing a single thread
     // (and have already filtered) it probably doesn't matter much
     if (commentPath || threadCommentId) {
-      potentialComments = sortBy(potentialComments, (i) =>
-        getDepthFromCommentPath(i.comment.path),
-      );
+      potentialComments = sortBy(potentialComments, [
+        (i) => getDepthFromCommentPath(i.comment.path),
+      ]);
     }
 
     return potentialComments;
@@ -204,6 +180,8 @@ export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
   ]);
 
   const focusCommentIfNeeded = useCallback(() => {
+    if (!bottomPadding) return false;
+
     const commentElement = scrollViewContainerRef.current?.querySelector(
       `.comment-${highlightedCommentId}`,
     );
@@ -212,13 +190,13 @@ export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
       () => {
         if (!(commentElement instanceof HTMLElement)) return;
 
-        scrollIntoView(commentElement, 100);
+        scrollIntoView(commentElement, bottomPadding);
       },
-      useScrollIntoViewWorkaround ? 50 : 600,
+      useScrollIntoViewWorkaround ? 200 : 600,
     );
 
     return !!commentElement;
-  }, [highlightedCommentId]);
+  }, [highlightedCommentId, bottomPadding]);
 
   // This is super hacky logic to scroll the view received new comments
   const scrolledRef = useRef(false);
@@ -235,11 +213,6 @@ export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
         )
       : [];
   }, [commentPath, filteredComments, threadCommentId]);
-
-  useEffect(() => {
-    fetchComments(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort, commentPath, postId, client, threadCommentId]);
 
   const fetchComments = useCallback(
     async (refresh = false) => {
@@ -295,10 +268,10 @@ export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
       if (reqPostId !== postId || reqCommentId !== parentCommentId) return;
 
       const existingComments = refresh ? [] : comments;
-      const newComments = pullAllBy(
+      const newComments = differenceBy(
         response.comments,
         existingComments,
-        "comment.id",
+        (c) => c.comment.id,
       );
       if (!newComments.length) finishedPagingRef.current = true;
 
@@ -325,6 +298,12 @@ export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
       sort,
     ],
   );
+
+  const fetchCommentsEvent = useEffectEvent(fetchComments);
+
+  useEffect(() => {
+    fetchCommentsEvent(true);
+  }, [sort, commentPath, postId, client, threadCommentId]);
 
   const prependComments = useCallback(
     async (comments: CommentView[]) => {
@@ -434,24 +413,27 @@ export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
     preservePositionFromBottomInScrollView,
   ]);
 
-  const padding = bottomPadding ? (
-    <div style={{ height: `${bottomPadding}px` }} />
-  ) : undefined;
-
-  function renderFooter() {
+  const renderFooter = useCallback(() => {
     if (loadFailed)
-      return <FeedLoadMoreFailed fetchMore={fetchComments} loading={loading} />;
+      return (
+        <FeedLoadMoreFailed
+          fetchMore={fetchComments}
+          loading={loading}
+          pluralType="comments"
+        />
+      );
 
-    if (loading && !comments.length) return <StyledIonSpinner />;
+    if (loading && !comments.length)
+      return <IonSpinner className={styles.spinner} />;
 
     if (!comments.length)
       return (
-        <Empty>
+        <div className={styles.empty}>
           <div>No Comments</div>
           <aside>It&apos;s quiet... too quiet...</aside>
-        </Empty>
+        </div>
       );
-  }
+  }, [comments.length, fetchComments, loadFailed, loading]);
 
   const commentsContextValue = useMemo(
     () => ({
@@ -467,7 +449,24 @@ export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
     preservePositionFromBottomInScrollView.restore();
   }, [maxContext, preservePositionFromBottomInScrollView]);
 
-  const content = [header, allComments, renderFooter(), padding];
+  const content = useMemo(
+    () =>
+      compact([
+        header,
+        ...allComments,
+        renderFooter(),
+        bottomPadding ? (
+          <div style={{ height: `${bottomPadding}px` }} />
+        ) : undefined,
+      ]),
+    [allComments, bottomPadding, header, renderFooter],
+  );
+
+  const onScroll = useRangeChange(virtuaRef, (start, end) => {
+    if (end + 10 > allComments.length && !loadFailed) {
+      fetchComments();
+    }
+  });
 
   return (
     <CommentsContext.Provider value={commentsContextValue}>
@@ -478,7 +477,7 @@ export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
       >
         <IonRefresherContent />
       </IonRefresher>
-      <ScrollViewContainer ref={scrollViewContainerRef}>
+      <div className={styles.scrollViewContainer} ref={scrollViewContainerRef}>
         {virtualEnabled ? (
           <VList
             className={
@@ -490,12 +489,8 @@ export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
             style={{ height: "100%" }}
             item={IndexedVirtuaItem}
             overscan={1}
-            onRangeChange={(start, end) => {
-              if (end + 10 > allComments.length && !loadFailed) {
-                fetchComments();
-              }
-            }}
             onScroll={(offset) => {
+              onScroll();
               setIsListAtTop(offset < 6);
             }}
           >
@@ -504,10 +499,10 @@ export default forwardRef<CommentsHandle, CommentsProps>(function Comments(
         ) : (
           <>{...content}</>
         )}
-      </ScrollViewContainer>
+      </div>
     </CommentsContext.Provider>
   );
-});
+}
 
 function getCommentContextDepthForPath(
   commentPath: string | undefined,

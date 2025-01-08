@@ -1,66 +1,25 @@
-import { styled } from "@linaria/react";
-import { useInModqueue } from "../../routes/pages/shared/ModqueuePage";
-import ModqueueItemActions from "../moderation/ModqueueItemActions";
-import ModActions from "./ModActions";
-import PersonLink from "../labels/links/PersonLink";
-import Vote from "../labels/Vote";
 import { IonIcon } from "@ionic/react";
-import { Comment, CommentView } from "lemmy-js-client";
-import { ModeratorRole } from "../moderation/useCanModerate";
-import Edited from "../labels/Edited";
-import { ActionsContainer } from "../post/inFeed/compact/CompactPost";
-import CommentEllipsis, { CommentEllipsisHandle } from "./CommentEllipsis";
-import Ago from "../labels/Ago";
 import { chevronDownOutline } from "ionicons/icons";
+import { Comment, CommentView } from "lemmy-js-client";
 import { RefObject } from "react";
-import { useAppSelector } from "../../store";
 
-const Header = styled.div`
-  display: flex;
-  align-items: center;
+import Ago from "#/features/labels/Ago";
+import Edited from "#/features/labels/Edited";
+import PersonLink from "#/features/labels/links/PersonLink";
+import Vote from "#/features/labels/Vote";
+import ModqueueItemActions from "#/features/moderation/ModqueueItemActions";
+import { ModeratorRole } from "#/features/moderation/useCanModerate";
+import { ActionButton } from "#/features/post/actions/ActionButton";
+import ActionsContainer from "#/features/post/actions/ActionsContainer";
+import UserScore from "#/features/tags/UserScore";
+import UserTag from "#/features/tags/UserTag";
+import { useInModqueue } from "#/routes/pages/shared/ModqueuePage";
+import { useAppSelector } from "#/store";
 
-  font-size: 0.875em;
+import CommentEllipsis, { CommentEllipsisHandle } from "./CommentEllipsis";
+import ModActions from "./ModActions";
 
-  gap: 0.5em;
-
-  color: var(--ion-color-medium2);
-`;
-
-const StyledPersonLink = styled(PersonLink)`
-  && {
-    color: var(--ion-text-color);
-  }
-
-  min-width: 0;
-  overflow: hidden;
-`;
-
-const CommentVote = styled(Vote)`
-  // Increase tap target
-  padding: 6px 3px;
-  margin: -6px -3px;
-`;
-
-const CollapsedIcon = styled(IonIcon)`
-  font-size: 1.2em;
-`;
-
-const AmountCollapsed = styled.div`
-  font-size: 0.875em;
-  padding: 2px 8px;
-  margin: -4px 0;
-  border-radius: 16px;
-  color: var(--ion-color-medium);
-  background: var(--ion-color-light);
-`;
-
-const DeletedLabel = styled.div`
-  font-style: italic;
-  color: var(--ion-color-medium);
-
-  min-width: 0;
-  overflow: hidden;
-`;
+import styles from "./CommentHeader.module.css";
 
 interface CommentHeaderProps {
   canModerate: ModeratorRole | undefined;
@@ -85,9 +44,13 @@ export default function CommentHeader({
     (state) => state.settings.general.comments.showCollapsed,
   );
   const inModqueue = useInModqueue();
+  const tagsEnabled = useAppSelector((state) => state.settings.tags.enabled);
+  const trackVotesEnabled = useAppSelector(
+    (state) => state.settings.tags.trackVotes,
+  );
 
   function renderActions() {
-    if (inModqueue) return <ModqueueItemActions item={commentView} />;
+    if (inModqueue) return <ModqueueItemActions itemView={commentView} />;
 
     if (canModerate)
       return <ModActions comment={commentView} role={canModerate} />;
@@ -95,25 +58,30 @@ export default function CommentHeader({
 
   const stub = isStubComment(comment, canModerate);
 
-  function renderAside(agoTimestamp = comment.published) {
+  function renderAside(agoTimestamp: string) {
     return (
       <>
         <ActionsContainer className={collapsed ? "ion-hide" : undefined}>
           {renderActions()}
-          <CommentEllipsis
-            comment={commentView}
-            rootIndex={rootIndex}
-            ref={commentEllipsisHandleRef}
-          />
+          <ActionButton>
+            <CommentEllipsis
+              comment={commentView}
+              rootIndex={rootIndex}
+              ref={commentEllipsisHandleRef}
+            />
+          </ActionButton>
           <Ago date={agoTimestamp} />
         </ActionsContainer>
         {collapsed && (
           <>
-            <AmountCollapsed>
+            <div className={styles.amountCollapsed}>
               {commentView.counts.child_count +
                 (showCollapsedComment || stub ? 0 : 1)}
-            </AmountCollapsed>
-            <CollapsedIcon icon={chevronDownOutline} />
+            </div>
+            <IonIcon
+              className={styles.collapsedIcon}
+              icon={chevronDownOutline}
+            />
           </>
         )}
       </>
@@ -125,67 +93,79 @@ export default function CommentHeader({
       case StubType.Deleted:
         return (
           <>
-            <DeletedLabel>
+            <div className={styles.deletedLabel}>
               <PersonLink
                 person={commentView.creator}
                 opId={commentView.post.creator_id}
                 distinguished={comment.distinguished}
                 showBadge={false}
+                showTag={false}
+                sourceUrl={commentView.comment.ap_id}
               />{" "}
               deleted their <span className="ion-text-nowrap">comment :(</span>
-            </DeletedLabel>
-            <div style={{ flex: 1 }} />
+            </div>
+            <div className={styles.spacer} />
             {renderAside(comment.updated || comment.published)}
           </>
         );
       case StubType.ModRemoved:
         return (
           <>
-            <DeletedLabel>
+            <div className={styles.deletedLabel}>
               mod removed{" "}
               <PersonLink
                 person={commentView.creator}
                 opId={commentView.post.creator_id}
                 distinguished={comment.distinguished}
                 showBadge={false}
+                showTag={false}
+                sourceUrl={commentView.comment.ap_id}
               />
               &apos;s comment
-            </DeletedLabel>
-            <div style={{ flex: 1 }} />
+            </div>
+            <div className={styles.spacer} />
             {renderAside(comment.updated || comment.published)}
           </>
         );
       default:
         return (
           <>
-            <StyledPersonLink
+            <PersonLink
+              className={styles.personLink}
               person={commentView.creator}
               opId={commentView.post.creator_id}
               distinguished={comment.distinguished}
               showBadge={!context}
+              showTag={false}
+              sourceUrl={commentView.comment.ap_id}
             />
-            <CommentVote item={commentView} />
+            {tagsEnabled && trackVotesEnabled && (
+              <UserScore person={commentView.creator} />
+            )}
+            <Vote className={styles.commentVote} item={commentView} />
             <Edited item={commentView} />
-            <div style={{ flex: 1 }} />
-            {renderAside()}
+            <div className={styles.spacer}>
+              {tagsEnabled && <UserTag person={commentView.creator} />}
+            </div>
+            {renderAside(comment.published)}
           </>
         );
     }
   })();
 
-  return <Header>{content}</Header>;
+  return <div className={styles.header}>{content}</div>;
 }
 
-enum StubType {
-  None,
-  Deleted,
-  ModRemoved,
-}
+const StubType = {
+  None: 0,
+  Deleted: 1,
+  ModRemoved: 2,
+} as const;
 
 export function isStubComment(
   comment: Comment,
   canModerate: ModeratorRole | undefined,
-): StubType {
+): (typeof StubType)[keyof typeof StubType] {
   if (comment.deleted) return StubType.Deleted;
 
   if (comment.removed && !canModerate) return StubType.ModRemoved;

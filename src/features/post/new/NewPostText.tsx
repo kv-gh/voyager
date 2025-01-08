@@ -2,16 +2,18 @@ import {
   IonBackButton,
   IonButton,
   IonButtons,
-  IonText,
+  IonIcon,
+  IonSpinner,
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
+import { send } from "ionicons/icons";
 import { Dispatch, SetStateAction, useEffect, useState } from "react";
-import { Centered, Spinner } from "../../auth/login/LoginNav";
-import { clearRecoveredText } from "../../../helpers/useTextRecovery";
-import AppHeader from "../../shared/AppHeader";
-import Editor from "../../shared/markdown/editing/Editor";
-import { MarkdownEditorIonContent } from "../../shared/markdown/editing/MarkdownToolbar";
+
+import AppHeader from "#/features/shared/AppHeader";
+import Editor from "#/features/shared/markdown/editing/Editor";
+import { MarkdownEditorIonContent } from "#/features/shared/markdown/editing/MarkdownToolbar";
+import { isIosTheme } from "#/helpers/device";
 
 interface NewPostTextProps {
   value: string;
@@ -46,8 +48,6 @@ export default function NewPostText({
     } finally {
       setLoading(false);
     }
-
-    clearRecoveredText();
   }
 
   return (
@@ -57,21 +57,24 @@ export default function NewPostText({
           <IonButtons slot="start">
             <IonBackButton disabled={loading} />
           </IonButtons>
-          <IonTitle>
-            <Centered>
-              <IonText>Post Text</IonText>
-              {loading && <Spinner color="dark" />}
-            </Centered>
-          </IonTitle>
+          <IonTitle>Post Text</IonTitle>
           <IonButtons slot="end">
-            <IonButton
-              strong
-              type="submit"
-              onClick={submit}
-              disabled={isSubmitDisabled}
-            >
-              Post
-            </IonButton>
+            {loading ? (
+              <IonSpinner />
+            ) : (
+              <IonButton
+                strong
+                type="submit"
+                onClick={submit}
+                disabled={isSubmitDisabled}
+              >
+                {isIosTheme() ? (
+                  "Post"
+                ) : (
+                  <IonIcon icon={send} slot="icon-only" />
+                )}
+              </IonButton>
+            )}
           </IonButtons>
         </IonToolbar>
       </AppHeader>

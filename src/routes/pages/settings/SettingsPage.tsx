@@ -1,14 +1,15 @@
 import {
   IonBadge,
   IonIcon,
+  IonItem,
+  IonLabel,
   IonList,
   IonPage,
   IonTitle,
   IonToolbar,
   useIonModal,
 } from "@ionic/react";
-import AppContent from "../../../features/shared/AppContent";
-import { InsetIonItem, SettingLabel } from "../../../features/user/Profile";
+import { useDocumentVisibility } from "@mantine/hooks";
 import {
   apps,
   at,
@@ -17,57 +18,51 @@ import {
   cog,
   colorPalette,
   heart,
+  pricetag,
   reloadCircle,
 } from "ionicons/icons";
-import { useContext, useEffect, useRef } from "react";
-import { UpdateContext } from "./update/UpdateContext";
-import useShouldInstall from "../../../features/pwa/useShouldInstall";
-import { useAppDispatch, useAppSelector } from "../../../store";
-import { userHandleSelector } from "../../../features/auth/authSelectors";
-import {
-  isAppleDeviceInstalledToHomescreen,
-  isNative,
-} from "../../../helpers/device";
-import { getIconSrc } from "../../../features/settings/app-icon/AppIcon";
-import { useSetActivePage } from "../../../features/auth/AppContext";
-import { gesture } from "../../../features/icons";
-import TipDialog from "../../../features/tips/TipDialog";
-import BiometricIcon from "../../../features/settings/biometric/BiometricIcon";
+import React, { useContext, useEffect, useRef } from "react";
+
+import { useSetActivePage } from "#/features/auth/AppContext";
+import { userHandleSelector } from "#/features/auth/authSelectors";
+import { gesture } from "#/features/icons";
+import useShouldInstall from "#/features/pwa/useShouldInstall";
+import { getIconSrc } from "#/features/settings/appIcon/AppIcon";
+import BiometricIcon from "#/features/settings/biometric/BiometricIcon";
 import {
   biometricSupportedSelector,
   refreshBiometricType,
-} from "../../../features/settings/biometric/biometricSlice";
-import BiometricTitle from "../../../features/settings/biometric/BiometricTitle";
-import usePageVisibility from "../../../helpers/usePageVisibility";
-import { styled } from "@linaria/react";
-import DatabaseErrorItem from "../../../features/settings/root/DatabaseErrorItem";
-import AppHeader from "../../../features/shared/AppHeader";
+} from "#/features/settings/biometric/biometricSlice";
+import BiometricTitle from "#/features/settings/biometric/BiometricTitle";
+import DatabaseErrorItem from "#/features/settings/root/DatabaseErrorItem";
+import AppContent from "#/features/shared/AppContent";
+import AppHeader from "#/features/shared/AppHeader";
+import TipDialog from "#/features/tips/TipDialog";
+import { sv } from "#/helpers/css";
+import { isAppleDeviceInstalledToHomescreen, isNative } from "#/helpers/device";
+import { useAppDispatch, useAppSelector } from "#/store";
 
-export const IconBg = styled.div<{ color: string; size?: string }>`
-  width: 30px;
-  height: 30px;
+import { UpdateContext } from "./update/UpdateContext";
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+import styles from "./SettingsPage.module.css";
 
-  ion-icon {
-    width: 20px;
-    height: 20px;
+interface IconBgProps extends React.PropsWithChildren {
+  color: string;
+  size?: string;
+  slot?: string;
+}
 
-    transform: scale(${({ size }) => size || 1});
-  }
-
-  border-radius: 50%;
-  background-color: ${({ color }) => color};
-  color: white;
-`;
-
-const AppIcon = styled.img`
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-`;
+export function IconBg({ color, size, children, slot }: IconBgProps) {
+  return (
+    <div
+      className={styles.iconBg}
+      style={sv({ color, scale: size })}
+      slot={slot}
+    >
+      {children}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const databaseError = useAppSelector((state) => state.settings.databaseError);
@@ -78,7 +73,7 @@ export default function SettingsPage() {
   const pageRef = useRef<HTMLElement>(null);
   const biometricSupported = useAppSelector(biometricSupportedSelector);
   const dispatch = useAppDispatch();
-  const pageVisibility = usePageVisibility();
+  const documentState = useDocumentVisibility();
 
   const [presentTip, onDismissTip] = useIonModal(TipDialog, {
     onDismiss: (data?: string, role?: string) => onDismissTip(data, role),
@@ -91,11 +86,11 @@ export default function SettingsPage() {
   }, [checkForUpdates]);
 
   useEffect(() => {
-    if (!pageVisibility) return;
+    if (documentState === "hidden") return;
     if (!isNative() || !isAppleDeviceInstalledToHomescreen()) return;
 
     dispatch(refreshBiometricType());
-  }, [pageVisibility, dispatch]);
+  }, [documentState, dispatch]);
 
   return (
     <IonPage ref={pageRef} className="grey-bg">
@@ -114,105 +109,136 @@ export default function SettingsPage() {
         {databaseError && <DatabaseErrorItem />}
 
         <IonList inset>
-          <InsetIonItem
+          <IonItem
             onClick={() => presentTip({ cssClass: "transparent-scroll" })}
             button
             detail
           >
-            <IconBg color="color(display-p3 1 0 0)">
+            <IconBg color="color(display-p3 1 0 0)" slot="start">
               <IonIcon icon={heart} />
             </IconBg>
-            <SettingLabel>Support Voyager</SettingLabel>
-          </InsetIonItem>
+            <IonLabel className="ion-text-nowrap">Support Voyager</IonLabel>
+          </IonItem>
         </IonList>
 
         {!isNative() && (
           <IonList inset>
-            <InsetIonItem routerLink="/settings/install">
-              <IconBg color="#0e7afe">
+            <IonItem routerLink="/settings/install">
+              <IconBg color="#0e7afe" slot="start">
                 <IonIcon icon={apps} />
               </IconBg>
-              <SettingLabel>Install app</SettingLabel>
+              <IonLabel className="ion-text-nowrap">Install app</IonLabel>
               {shouldInstall && <IonBadge color="danger">1</IonBadge>}
-            </InsetIonItem>
+            </IonItem>
 
-            <InsetIonItem routerLink="/settings/update">
-              <IconBg color="color(display-p3 0 0.8 0)" size="1.25">
+            <IonItem routerLink="/settings/update">
+              <IconBg
+                color="color(display-p3 0 0.8 0)"
+                size="1.25"
+                slot="start"
+              >
                 <IonIcon icon={reloadCircle} />
               </IconBg>
-              <SettingLabel>Check for updates</SettingLabel>
+              <IonLabel className="ion-text-nowrap">Check for updates</IonLabel>
               {updateStatus === "outdated" && (
                 <IonBadge color="danger">1</IonBadge>
               )}
-            </InsetIonItem>
+            </IonItem>
           </IonList>
         )}
         <IonList inset>
-          <InsetIonItem routerLink="/settings/general">
-            <IconBg color="color(display-p3 0.5 0.5 0.5)" size="1.3">
+          <IonItem routerLink="/settings/general">
+            <IconBg
+              color="color(display-p3 0.5 0.5 0.5)"
+              size="1.3"
+              slot="start"
+            >
               <IonIcon icon={cog} />
             </IconBg>
-            <SettingLabel>General</SettingLabel>
-          </InsetIonItem>
+            <IonLabel className="ion-text-nowrap">General</IonLabel>
+          </IonItem>
 
-          <InsetIonItem routerLink="/settings/appearance">
-            <IconBg color="#0e7afe" size="1.2">
+          <IonItem routerLink="/settings/appearance">
+            <IconBg color="#0e7afe" size="1.2" slot="start">
               <IonIcon icon={colorPalette} />
             </IconBg>
-            <SettingLabel>Appearance</SettingLabel>
-          </InsetIonItem>
+            <IonLabel className="ion-text-nowrap">Appearance</IonLabel>
+          </IonItem>
 
           {isNative() && (
-            <InsetIonItem routerLink="/settings/app-icon">
-              <AppIcon src={getIconSrc(icon)} />
-              <SettingLabel>App Icon</SettingLabel>
-            </InsetIonItem>
+            <IonItem routerLink="/settings/app-icon">
+              <img
+                src={getIconSrc(icon)}
+                slot="start"
+                className={styles.appIcon}
+              />
+              <IonLabel className="ion-text-nowrap">App Icon</IonLabel>
+            </IonItem>
           )}
 
           {biometricSupported && (
-            <InsetIonItem routerLink="/settings/biometric">
-              <IconBg color="color(display-p3 0.86 0.1 0.2)" size="1.1">
+            <IonItem routerLink="/settings/biometric">
+              <IconBg
+                color="color(display-p3 0.86 0.1 0.2)"
+                size="1.1"
+                slot="start"
+              >
                 <BiometricIcon />
               </IconBg>
-              <SettingLabel>
+              <IonLabel className="ion-text-nowrap">
                 <BiometricTitle />
-              </SettingLabel>
-            </InsetIonItem>
+              </IonLabel>
+            </IonItem>
           )}
 
           {currentHandle && (
-            <InsetIonItem routerLink="/settings/blocks">
-              <IconBg color="color(display-p3 0 0.75 0.3)" size="1.15">
+            <IonItem routerLink="/settings/blocks">
+              <IconBg
+                color="color(display-p3 0 0.75 0.3)"
+                size="1.15"
+                slot="start"
+              >
                 <IonIcon icon={ban} />
               </IconBg>
-              <SettingLabel>Filters & Blocks</SettingLabel>
-            </InsetIonItem>
+              <IonLabel className="ion-text-nowrap">Filters & Blocks</IonLabel>
+            </IonItem>
           )}
 
-          <InsetIonItem routerLink="/settings/gestures">
-            <IconBg color="color(display-p3 0.55 0.15 1)" size="1.3">
+          <IonItem routerLink="/settings/tags">
+            <IconBg color="color(display-p3 1 0.3 1)" size="1" slot="start">
+              <IonIcon icon={pricetag} />
+            </IconBg>
+            <IonLabel className="ion-text-nowrap">User Tags</IonLabel>
+          </IonItem>
+
+          <IonItem routerLink="/settings/gestures">
+            <IconBg
+              color="color(display-p3 0.55 0.15 1)"
+              size="1.3"
+              slot="start"
+            >
               <IonIcon icon={gesture} />
             </IconBg>
-            <SettingLabel>Gestures</SettingLabel>
-          </InsetIonItem>
+            <IonLabel className="ion-text-nowrap">Gestures</IonLabel>
+          </IonItem>
         </IonList>
 
         <IonList inset>
-          <InsetIonItem routerLink="/settings/reddit-migrate">
-            <IconBg color="#ff5700">
+          <IonItem routerLink="/settings/reddit-migrate">
+            <IconBg color="#ff5700" slot="start">
               <IonIcon icon={bagCheck} />
             </IconBg>
-            <SettingLabel>Migrate subreddits</SettingLabel>
-          </InsetIonItem>
+            <IonLabel className="ion-text-nowrap">Migrate Subreddits</IonLabel>
+          </IonItem>
         </IonList>
 
         <IonList inset>
-          <InsetIonItem routerLink="/settings/about/app">
-            <IconBg color="#0e7afe" size="1.15">
+          <IonItem routerLink="/settings/about">
+            <IconBg color="#0e7afe" size="1.15" slot="start">
               <IonIcon icon={at} />
             </IconBg>
-            <SettingLabel>About</SettingLabel>
-          </InsetIonItem>
+            <IonLabel className="ion-text-nowrap">About</IonLabel>
+          </IonItem>
         </IonList>
       </AppContent>
     </IonPage>

@@ -1,14 +1,17 @@
 /* eslint-disable react/jsx-key */
-
-import { Redirect } from "react-router";
-import Route from "../common/Route";
-import SearchPage from "../pages/search/SearchPage";
-import SearchPostsResultsPage from "../pages/search/results/SearchFeedResultsPage";
-import SearchCommunitiesPage from "../pages/search/results/SearchCommunitiesPage";
+import Route from "#/routes/common/Route";
+import CommunitiesResultsPage from "#/routes/pages/search/CommunitiesResultsPage";
+import RandomCommunityPage from "#/routes/pages/search/RandomCommunityPage";
+import SearchCommunitiesPage from "#/routes/pages/search/results/SearchCommunitiesPage";
+import SearchPostsResultsPage from "#/routes/pages/search/results/SearchFeedResultsPage";
+import SearchPage from "#/routes/pages/search/SearchPage";
 
 export default [
   <Route exact path="/search">
     <SearchPage />
+  </Route>,
+  <Route exact path="/search/random">
+    <RandomCommunityPage />
   </Route>,
   <Route exact path="/search/posts/:search">
     <SearchPostsResultsPage type="Posts" />
@@ -19,7 +22,7 @@ export default [
   <Route exact path="/search/communities/:search">
     <SearchCommunitiesPage />
   </Route>,
-  <Route exact path="/search/:actor">
-    <Redirect to="/search" push={false} />
+  <Route exact path="/search/explore">
+    <CommunitiesResultsPage />
   </Route>,
 ];

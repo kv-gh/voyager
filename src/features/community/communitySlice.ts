@@ -1,27 +1,27 @@
-import { PayloadAction, createSlice } from "@reduxjs/toolkit";
-import { AppDispatch, RootState } from "../../store";
-import { clientSelector } from "../auth/authSelectors";
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import {
   CommunityModeratorView,
   CommunityView,
   GetCommunityResponse,
 } from "lemmy-js-client";
-import { getHandle } from "../../helpers/lemmy";
-import { db } from "../../services/db";
-import { without } from "lodash";
-import { getSite } from "../auth/siteSlice";
+
+import { clientSelector } from "#/features/auth/authSelectors";
+import { getSite } from "#/features/auth/siteSlice";
+import { getHandle } from "#/helpers/lemmy";
+import { db } from "#/services/db";
+import { AppDispatch, RootState } from "#/store";
 
 interface CommunityState {
   communityByHandle: Record<string, CommunityView>;
   modsByHandle: Record<string, CommunityModeratorView[]>;
-  trendingCommunities: CommunityView[];
+  trendingCommunities: CommunityView[] | undefined;
   favorites: string[];
 }
 
 const initialState: CommunityState = {
   communityByHandle: {},
   modsByHandle: {},
-  trendingCommunities: [],
+  trendingCommunities: undefined,
   favorites: [],
 };
 
@@ -94,7 +94,9 @@ export const removeFavorite =
   (community: string) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
     const userHandle = getState().auth.accountData?.activeHandle;
-    const favorites = without(getState().community.favorites, community);
+    const favorites = getState().community.favorites.filter(
+      (fav) => fav !== community,
+    );
 
     if (!userHandle) return;
 

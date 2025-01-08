@@ -1,37 +1,14 @@
-import { styled } from "@linaria/react";
-import { FallbackProps } from "react-error-boundary";
-import { isInstalled, isNative } from "../helpers/device";
 import { IonButton, IonIcon, IonLabel } from "@ionic/react";
 import { logoGithub } from "ionicons/icons";
-import { unloadServiceWorkerAndRefresh } from "../helpers/serviceWorker";
-import { memoryHistory } from "../routes/common/Router";
-import store from "../store";
-import { loggedInSelector } from "../features/auth/authSelectors";
+import { FallbackProps } from "react-error-boundary";
 
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  text-align: center;
-  padding: 8px;
+import { loggedInSelector } from "#/features/auth/authSelectors";
+import { isInstalled, isNative } from "#/helpers/device";
+import { unloadServiceWorkerAndRefresh } from "#/helpers/serviceWorker";
+import { memoryHistory } from "#/routes/common/Router";
+import store from "#/store";
 
-  position: absolute;
-  inset: 0;
-
-  overflow: auto;
-
-  padding-top: max(env(safe-area-inset-top), 8px);
-  padding-right: max(env(safe-area-inset-right), 8px);
-  padding-bottom: max(env(safe-area-inset-bottom), 8px);
-  padding-left: max(env(safe-area-inset-left), 8px);
-
-  color: var(--ion-text-color);
-`;
-
-const Title = styled.h2``;
-
-const Description = styled.div``;
+import styles from "./AppCrash.module.css";
 
 export default function AppCrash({ error }: FallbackProps) {
   // Don't use useLocation/useAppSelector, because they are not available
@@ -39,7 +16,7 @@ export default function AppCrash({ error }: FallbackProps) {
   const location = memoryHistory ? memoryHistory.location : window.location;
   const loggedIn = loggedInSelector(store.getState());
 
-  const crashData = `
+  let crashData = `
 ### Crash description
 
 <!-- Write any information here to help us debug your crash! -->
@@ -52,20 +29,22 @@ export default function AppCrash({ error }: FallbackProps) {
   - Logged in? \`${loggedIn}\`
   - Native app? \`${isNative()}\`
   - Installed to home screen? \`${isInstalled()}\`
-  - Voyager version: \`${APP_VERSION}\`
-  - BUILD_FOSS_ONLY: \`${BUILD_FOSS_ONLY}\`
+  - APP_VERSION: \`${import.meta.env.APP_VERSION}\`
+  - APP_BUILD: \`${import.meta.env.APP_BUILD}\`
+  - APP_GIT_REF: \`${import.meta.env.APP_GIT_REF}\`
+  - BUILD_FOSS_ONLY: \`${import.meta.env.BUILD_FOSS_ONLY}\`
   - User agent: \`${navigator.userAgent}\`
 
 ### Crash data
 
-Error: \`${error}\`
+Error: \`\`${error}\`\`
 
 #### Stack trace
 
 \`\`\`
-${error instanceof Error ? error.stack : "Not available"}
-\`\`\`
   `.trim();
+
+  crashData = `${crashData}\n${error instanceof Error ? error.stack : "Not available"}`;
 
   async function clearData() {
     if (
@@ -87,16 +66,14 @@ ${error instanceof Error ? error.stack : "Not available"}
   }
 
   return (
-    <Container>
-      <Title>🫣 Gah! Voyager crashed!</Title>
-      <Description>
+    <div className={styles.container}>
+      <h2>🫣 Gah! Voyager crashed!</h2>
+      <div>
         Voyager does not collect any data, so we would appreciate you
         voluntarily submitting this crash for us to investigate.
-      </Description>
+      </div>
       <IonButton
-        href={`https://github.com/aeharding/voyager/issues/new?title=Crash&body=${encodeURIComponent(
-          crashData,
-        )}`}
+        href={generateTruncatedCrashUrl(crashData)}
         target="_blank"
         rel="noopener noreferrer"
         color="success"
@@ -107,15 +84,15 @@ ${error instanceof Error ? error.stack : "Not available"}
 
       <hr />
 
-      <Description>
+      <div>
         You can also try reloading the app to see if that solves the issue.
         {isNative() ? " Check the app store for an update, too." : ""}
-      </Description>
+      </div>
       <IonButton onClick={unloadServiceWorkerAndRefresh}>Reload app</IonButton>
 
       <hr />
 
-      <Description>
+      <div>
         If this crash is affecting many people, you can probably learn more{" "}
         <a
           href="https://lemmy.world/c/voyagerapp"
@@ -125,12 +102,43 @@ ${error instanceof Error ? error.stack : "Not available"}
           at Voyager&apos;s Lemmy community
         </a>
         .
-      </Description>
+      </div>
 
-      <Description>As a last resort, try clearing all app data.</Description>
+      <div>As a last resort, try clearing all app data.</div>
       <IonButton color="danger" onClick={clearData}>
         Clear app data
       </IonButton>
-    </Container>
+    </div>
   );
+}
+
+function generateCrashUrl(crashData: string): string {
+  return `https://github.com/aeharding/voyager/issues/new?title=Crash&body=${encodeURIComponent(
+    crashData,
+  )}`;
+}
+
+// The GitHub GET endpoint for opening a new issue
+// has a restriction for maximum length of a URL: 8192 bytes
+// https://github.com/cli/cli/pull/3271
+// https://github.com/cli/cli/issues/1575
+// https://github.com/cli/cli/blob/trunk/pkg/cmd/issue/create/create.go#L167
+// https://github.com/cli/cli/blob/trunk/utils/utils.go#L84
+const maxIssueBytes = 8150;
+
+function getStrByteLength(str: string): number {
+  return new TextEncoder().encode(str).length;
+}
+
+function generateTruncatedCrashUrl(crashData: string): string {
+  let url: string;
+  let strLength = 1;
+
+  do {
+    url = generateCrashUrl(crashData.slice(0, strLength));
+    if (strLength === crashData.length) return url;
+    strLength++;
+  } while (getStrByteLength(url) < maxIssueBytes);
+
+  return url;
 }

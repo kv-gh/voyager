@@ -1,30 +1,15 @@
 import { IonButton, IonText } from "@ionic/react";
-import IncognitoSvg from "./incognito.svg?react";
-import { useAppSelector } from "../../store";
-import { PageContext } from "../auth/PageContext";
 import { useContext } from "react";
-import { accountsListEmptySelector } from "../auth/authSelectors";
-import AppContent from "../shared/AppContent";
-import { styled } from "@linaria/react";
-import { css, cx } from "@linaria/core";
 
-const StyledAppContent = styled(AppContent)`
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-around;
-`;
+import { accountsListEmptySelector } from "#/features/auth/authSelectors";
+import { PageContext } from "#/features/auth/PageContext";
+import AppContent from "#/features/shared/AppContent";
+import { useAppSelector } from "#/store";
 
-const Incognito = styled(IncognitoSvg)`
-  opacity: 0.1;
-  width: 300px;
-  height: 300px;
-  position: relative;
-  left: 50%;
-  transform: translateX(-50%);
+import IncognitoSvg from "./incognito.svg?react";
 
-  flex-shrink: 0;
-`;
+import sharedStyles from "#/features/shared/shared.module.css";
+import styles from "./LoggedOut.module.css";
 
 export default function LoggedOut() {
   const connectedInstance = useAppSelector(
@@ -36,17 +21,10 @@ export default function LoggedOut() {
     useContext(PageContext);
 
   return (
-    <StyledAppContent>
+    <AppContent className={styles.content}>
       <div>
         <IonText color="medium">
-          <p
-            className={cx(
-              "ion-padding",
-              css`
-                font-size: 0.875em;
-              `,
-            )}
-          >
+          <p className={styles.message}>
             You are browsing <strong>{connectedInstance}</strong> as a guest.
             Log in to vote, comment and post!
           </p>
@@ -73,7 +51,7 @@ export default function LoggedOut() {
           </IonButton>
         )}
       </div>
-      <Incognito />
-    </StyledAppContent>
+      <IncognitoSvg className={sharedStyles.emptyStateIcon} />
+    </AppContent>
   );
 }

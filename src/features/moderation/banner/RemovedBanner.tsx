@@ -1,13 +1,15 @@
 import { IonIcon, useIonAlert } from "@ionic/react";
-import { useAppDispatch } from "../../../store";
-import useAppToast from "../../../helpers/useAppToast";
-import { modRemoveComment } from "../../comment/commentSlice";
-import { modRemovePost } from "../../post/postSlice";
-import { CommentView, PostView } from "lemmy-js-client";
-import { commentApproved, postApproved } from "../../../helpers/toastMessages";
-import { Banner, ItemModState } from "./ModeratableItemBanner";
 import { trashOutline } from "ionicons/icons";
-import { isPost } from "../../../helpers/lemmy";
+import { CommentView, PostView } from "lemmy-js-client";
+
+import { modRemoveComment } from "#/features/comment/commentSlice";
+import { modRemovePost } from "#/features/post/postSlice";
+import { isPost } from "#/helpers/lemmy";
+import { commentApproved, postApproved } from "#/helpers/toastMessages";
+import useAppToast from "#/helpers/useAppToast";
+import { useAppDispatch } from "#/store";
+
+import { Banner, ItemModState } from "./ModeratableItemBanner";
 
 interface RemovedBannerProps {
   itemView: CommentView | PostView;
@@ -25,10 +27,10 @@ export default function RemovedBanner({ itemView }: RemovedBannerProps) {
         handler: () => {
           (async () => {
             if (isPost(itemView)) {
-              dispatch(modRemovePost(itemView.post.id, false));
+              dispatch(modRemovePost(itemView.post, false));
               presentToast(postApproved);
             } else {
-              await dispatch(modRemoveComment(itemView.comment.id, false));
+              await dispatch(modRemoveComment(itemView.comment, false));
               presentToast(commentApproved);
             }
           })();

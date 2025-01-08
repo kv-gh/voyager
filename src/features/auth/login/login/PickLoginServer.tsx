@@ -1,4 +1,3 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   IonBackButton,
   IonButton,
@@ -12,43 +11,41 @@ import {
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
-import { VList } from "virtua";
-import { styled } from "@linaria/react";
-import { LOGIN_SERVERS } from "../data/servers";
-import { getClient } from "../../../../services/lemmy";
-import Login from "./Login";
-import useAppToast from "../../../../helpers/useAppToast";
-import { isValidHostname } from "../../../../helpers/url";
+import { uniq } from "es-toolkit";
 import { GetSiteResponse } from "lemmy-js-client";
-import { uniq } from "lodash";
-import { getCustomServers } from "../../../../services/app";
-import AppHeader from "../../../shared/AppHeader";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { VList, VListHandle } from "virtua";
 
-const Container = styled.div`
-  height: 100%;
+import { LOGIN_SERVERS } from "#/features/auth/login/data/servers";
+import AppHeader from "#/features/shared/AppHeader";
+import {
+  isMinimumSupportedLemmyVersion,
+  MINIMUM_LEMMY_VERSION,
+} from "#/helpers/lemmy";
+import { isValidHostname, stripProtocol } from "#/helpers/url";
+import useAppToast from "#/helpers/useAppToast";
+import { getCustomServers } from "#/services/app";
+import { getClient } from "#/services/lemmy";
 
-  display: flex;
-  flex-direction: column;
-`;
+import Login from "./Login";
 
-const StyledIonList = styled(IonList)`
-  flex: 1;
-
-  --ion-item-background: none;
-`;
+import styles from "./PickLoginServer.module.css";
 
 export default function PickLoginServer() {
   const presentToast = useAppToast();
   const [search, setSearch] = useState("");
-  const [dirty, setDirty] = useState(false);
+  const [shouldSubmit, setShouldSubmit] = useState(false);
+  const searchHostname = stripProtocol(search.trim());
   const instances = useMemo(
     () =>
       uniq([...getCustomServers(), ...LOGIN_SERVERS]).filter((server) =>
-        server.includes(search.toLowerCase()),
+        server.includes(searchHostname.toLowerCase()),
       ),
-    [search],
+    [searchHostname],
   );
   const [loading, setLoading] = useState(false);
+
+  const vHandle = useRef<VListHandle>(null);
 
   const ref = useRef<HTMLDivElement>(null);
   const searchbarRef = useRef<HTMLIonSearchbarElement>(null);
@@ -56,12 +53,16 @@ export default function PickLoginServer() {
   const searchInvalid = useMemo(
     () =>
       !(
-        isValidHostname(search) &&
-        search.includes(".") &&
-        !search.endsWith(".")
+        isValidHostname(searchHostname) &&
+        searchHostname.includes(".") &&
+        !searchHostname.endsWith(".")
       ),
-    [search],
+    [searchHostname],
   );
+
+  useEffect(() => {
+    vHandle.current?.scrollTo(0);
+  }, [search]);
 
   useEffect(() => {
     setTimeout(() => {
@@ -69,25 +70,23 @@ export default function PickLoginServer() {
     }, 300);
   }, []);
 
-  async function submit() {
+  const submit = useCallback(async () => {
     if (loading) return;
 
-    setLoading(true);
+    const potentialServer = searchHostname.toLowerCase();
 
-    const potentialServer = search.toLowerCase();
+    if (instances[0] && search !== potentialServer) {
+      setSearch(instances[0]);
+      return;
+    }
+
+    setLoading(true);
 
     let site: GetSiteResponse;
 
     try {
       site = await getClient(potentialServer).getSite();
     } catch (error) {
-      // Dirty input with candidate
-      if (instances[0]) {
-        setDirty(false);
-        setSearch(instances[0]);
-        return;
-      }
-
       presentToast({
         message: `Problem connecting to ${potentialServer}. Please try again`,
         color: "danger",
@@ -99,12 +98,30 @@ export default function PickLoginServer() {
       setLoading(false);
     }
 
+    if (!isMinimumSupportedLemmyVersion(site.version)) {
+      presentToast({
+        message: `${potentialServer} is running Lemmy v${site.version}. Voyager requires at least v${MINIMUM_LEMMY_VERSION}`,
+        color: "danger",
+        fullscreen: true,
+        duration: 6_000,
+      });
+
+      return;
+    }
+
     ref.current
       ?.closest("ion-nav")
       ?.push(() => (
         <Login url={potentialServer} siteIcon={site.site_view.site.icon} />
       ));
-  }
+  }, [instances, loading, presentToast, search, searchHostname]);
+
+  useEffect(() => {
+    if (!shouldSubmit) return;
+
+    setShouldSubmit(false);
+    submit();
+  }, [shouldSubmit, submit]);
 
   return (
     <>
@@ -125,8 +142,8 @@ export default function PickLoginServer() {
           </IonButtons>
         </IonToolbar>
       </AppHeader>
-      <IonContent>
-        <Container ref={ref}>
+      <IonContent scrollY={false}>
+        <div className={styles.container} ref={ref}>
           <div className="ion-padding">
             <IonText color="medium">
               Pick the server you created your account on
@@ -135,25 +152,32 @@ export default function PickLoginServer() {
 
           <IonSearchbar
             ref={searchbarRef}
-            enterkeyhint="go"
+            enterkeyhint="next"
             placeholder="Enter URL or search for your server"
             inputMode="url"
             onKeyDown={(e) => {
               if (e.key !== "Enter") return;
 
+              // Invalid search and there is a candidate for autocomplete
+              if (
+                searchInvalid &&
+                instances[0] &&
+                instances[0] !== searchHostname
+              ) {
+                setSearch(instances[0]);
+                return;
+              }
+
               // Already selected a server
-              if (!dirty && search) return submit();
+              if (search) return submit();
 
               // Valid with TLD (for autocomplete search)
               if (!searchInvalid) {
-                setDirty(false);
                 submit();
                 return;
               }
 
-              // Dirty input with candidate
               if (instances[0]) {
-                setDirty(false);
                 setSearch(instances[0]);
                 return;
               }
@@ -166,34 +190,35 @@ export default function PickLoginServer() {
             }}
             value={search}
             onIonInput={(e) => {
-              setDirty(true);
-              setSearch(e.detail.value || "");
+              setSearch(e.detail.value ?? "");
             }}
           />
 
-          {dirty && (
-            <StyledIonList>
-              <VList count={instances.length}>
-                {(i) => {
-                  const instance = instances[i]!;
+          <IonList className={styles.list}>
+            <VList
+              count={instances.length}
+              ref={vHandle}
+              className="ion-content-scroll-host"
+            >
+              {(i) => {
+                const instance = instances[i]!;
 
-                  return (
-                    <IonItem
-                      detail
-                      onClick={() => {
-                        setSearch(instance);
-                        setDirty(false);
-                        searchbarRef.current?.setFocus();
-                      }}
-                    >
-                      {instance}
-                    </IonItem>
-                  );
-                }}
-              </VList>
-            </StyledIonList>
-          )}
-        </Container>
+                return (
+                  <IonItem
+                    detail
+                    onClick={() => {
+                      setSearch(instance);
+                      setShouldSubmit(true);
+                      searchbarRef.current?.setFocus();
+                    }}
+                  >
+                    {instance}
+                  </IonItem>
+                );
+              }}
+            </VList>
+          </IonList>
+        </div>
       </IonContent>
     </>
   );

@@ -1,11 +1,13 @@
-import { PayloadAction, createSlice } from "@reduxjs/toolkit";
-import { AppDispatch, RootState } from "../../store";
-import { clientSelector } from "../auth/authSelectors";
-import { getHandle } from "../../helpers/lemmy";
-import { LIMIT } from "../../services/lemmy";
-import { receivedComments } from "../comment/commentSlice";
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { BanFromCommunity, Person } from "lemmy-js-client";
-import { getSite } from "../auth/siteSlice";
+
+import { clientSelector } from "#/features/auth/authSelectors";
+import { getSite } from "#/features/auth/siteSlice";
+import { receivedComments } from "#/features/comment/commentSlice";
+import { resetMessages, syncMessages } from "#/features/inbox/inboxSlice";
+import { getHandle } from "#/helpers/lemmy";
+import { LIMIT } from "#/services/lemmy";
+import { AppDispatch, RootState } from "#/store";
 
 interface CommentState {
   userByHandle: Record<string, Person>;
@@ -23,7 +25,7 @@ export const userSlice = createSlice({
   reducers: {
     receivedUsers: (state, action: PayloadAction<Person[]>) => {
       for (const user of action.payload) {
-        state.userByHandle[getHandle(user)] = user;
+        state.userByHandle[getHandle(user).toLowerCase()] = user;
       }
     },
     updateBanned: (
@@ -75,6 +77,21 @@ export const blockUser =
 
     dispatch(receivedUsers([response.person_view.person]));
     await dispatch(getSite());
+
+    // We have synced (or are syncing) messages, AND
+    //   - We are either unblocking (may have messages from that user), OR
+    //   - we are blocking the user and we have messages from this user,
+    // so refresh is needed
+    if (
+      getState().inbox.messageSyncState !== "init" &&
+      (!block ||
+        getState().inbox.messages?.find(
+          (msg) => msg.creator.id === id || msg.recipient.id === id,
+        ))
+    ) {
+      dispatch(resetMessages());
+      dispatch(syncMessages());
+    }
   };
 
 export const banUser =

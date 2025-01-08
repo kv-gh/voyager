@@ -1,4 +1,3 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   IonAvatar,
   IonBackButton,
@@ -15,29 +14,23 @@ import {
   IonToolbar,
   useIonActionSheet,
 } from "@ionic/react";
-import useAppToast from "../../../../helpers/useAppToast";
-import { useAppDispatch, useAppSelector } from "../../../../store";
-import { addGuestInstance, login } from "../../authSlice";
-import {
-  OldLemmyErrorValue,
-  getLoginErrorMessage,
-  isLemmyError,
-} from "../../../../helpers/lemmy";
-import Totp from "./Totp";
-import { DynamicDismissableModalContext } from "../../../shared/DynamicDismissableModal";
-import InAppExternalLink from "../../../shared/InAppExternalLink";
-import { HelperText } from "../../../settings/shared/formatting";
-import { getImageSrc } from "../../../../services/lemmy";
-import { loginSuccess } from "../../../../helpers/toastMessages";
-import lemmyLogo from "../lemmyLogo.svg";
-import { styled } from "@linaria/react";
-import { VOYAGER_TERMS } from "../../../../helpers/voyager";
-import { getInstanceFromHandle } from "../../authSelectors";
-import AppHeader from "../../../shared/AppHeader";
+import { useContext, useEffect, useRef, useState } from "react";
 
-const SiteImg = styled.img`
-  object-fit: contain;
-`;
+import { HelperText } from "#/features/settings/shared/formatting";
+import AppHeader from "#/features/shared/AppHeader";
+import { DynamicDismissableModalContext } from "#/features/shared/DynamicDismissableModal";
+import InAppExternalLink from "#/features/shared/InAppExternalLink";
+import { getLoginErrorMessage, isLemmyError } from "#/helpers/lemmyErrors";
+import { loginSuccess } from "#/helpers/toastMessages";
+import useAppToast from "#/helpers/useAppToast";
+import { VOYAGER_TERMS } from "#/helpers/voyager";
+import { buildBaseLemmyUrl } from "#/services/lemmy";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import { getInstanceFromHandle } from "../../authSelectors";
+import { addGuestInstance, login } from "../../authSlice";
+import LoginAvatarImg from "./LoginAvatarImg";
+import Totp from "./Totp";
 
 interface LoginProps {
   url: string;
@@ -120,10 +113,7 @@ export default function Login({ url, siteIcon }: LoginProps) {
         return;
       }
 
-      if (
-        isLemmyError(error, "password_incorrect" as OldLemmyErrorValue) || // TODO lemmy v0.18 support
-        isLemmyError(error, "incorrect_login")
-      ) {
+      if (isLemmyError(error, "incorrect_login")) {
         setPassword("");
       }
 
@@ -166,21 +156,13 @@ export default function Login({ url, siteIcon }: LoginProps) {
         <div className="ion-padding">
           You are logging in to{" "}
           <InAppExternalLink
-            href={`https://${url}`}
+            href={buildBaseLemmyUrl(url)}
             target="_blank"
             rel="noopener noreferrer"
           >
             <IonChip outline>
               <IonAvatar>
-                <SiteImg
-                  src={
-                    siteIcon
-                      ? getImageSrc(siteIcon, {
-                          size: 24,
-                        })
-                      : lemmyLogo
-                  }
-                />
+                <LoginAvatarImg src={siteIcon} />
               </IonAvatar>
               <IonLabel>{url}</IonLabel>
             </IonChip>

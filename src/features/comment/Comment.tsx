@@ -1,45 +1,30 @@
 import { IonItem } from "@ionic/react";
 import { CommentView } from "lemmy-js-client";
-import React, { MouseEvent, memo, useCallback, useRef } from "react";
+import React, { MouseEvent, useRef } from "react";
 import AnimateHeight from "react-animate-height";
-import CommentContent from "./CommentContent";
-import SlidingNestedCommentVote from "../shared/sliding/SlidingNestedCommentVote";
-import { CommentEllipsisHandle } from "./CommentEllipsis";
-import { useAppSelector } from "../../store";
-import Save from "../labels/Save";
-import { ModeratableItemBannerOutlet } from "../moderation/ModeratableItem";
-import ModeratableItem from "../moderation/ModeratableItem";
-import useCanModerate from "../moderation/useCanModerate";
 import { useLongPress } from "use-long-press";
-import { filterEvents } from "../../helpers/longPress";
-import { preventOnClickNavigationBug } from "../../helpers/ionic";
-import { styled } from "@linaria/react";
-import { PositionedContainer } from "./elements/PositionedContainer";
-import { Container } from "./elements/Container";
+
+import Save from "#/features/labels/Save";
+import { ModeratableItemBannerOutlet } from "#/features/moderation/ModeratableItem";
+import ModeratableItem from "#/features/moderation/ModeratableItem";
+import useCanModerate from "#/features/moderation/useCanModerate";
+import SlidingNestedCommentVote from "#/features/shared/sliding/SlidingNestedCommentVote";
+import { cx } from "#/helpers/css";
+import { isTouchDevice } from "#/helpers/device";
+import {
+  preventOnClickNavigationBug,
+  stopIonicTapClick,
+} from "#/helpers/ionic";
+import { filterEvents } from "#/helpers/longPress";
+import { useAppSelector } from "#/store";
+
+import CommentContent from "./CommentContent";
+import { CommentEllipsisHandle } from "./CommentEllipsis";
 import CommentHeader, { isStubComment } from "./CommentHeader";
+import CommentContainer from "./elements/CommentContainer";
+import { PositionedContainer } from "./elements/PositionedContainer";
 
-export const CustomIonItem = styled(IonItem)`
-  scroll-margin-bottom: 35vh;
-
-  --padding-start: 0;
-  --inner-padding-end: 0;
-  --border-style: none;
-  --min-height: 0;
-`;
-
-const Content = styled.div`
-  padding-top: 0.35em;
-
-  display: flex;
-  flex-direction: column;
-  gap: 1em;
-
-  @media (hover: none) {
-    padding-top: 0.45em;
-  }
-
-  line-height: 1.25;
-`;
+import styles from "./Comment.module.css";
 
 interface CommentProps {
   comment: CommentView;
@@ -58,9 +43,7 @@ interface CommentProps {
   rootIndex?: number;
 }
 
-export default memo(Comment);
-
-function Comment({
+export default function Comment({
   comment: commentView,
   highlightedCommentId,
   depth,
@@ -88,18 +71,19 @@ function Comment({
 
   const stub = isStubComment(comment, canModerate);
 
-  const collapsed =
-    (showCollapsedComment || stub) && !commentView.counts.child_count
-      ? false
-      : _collapsed;
+  const cannotCollapse =
+    (showCollapsedComment || stub) && !commentView.counts.child_count;
 
-  const onCommentLongPress = useCallback(() => {
+  const collapsed = cannotCollapse ? false : _collapsed;
+
+  function onCommentLongPress() {
     commentEllipsisHandleRef.current?.present();
-  }, []);
+    stopIonicTapClick();
+  }
 
   const bind = useLongPress(onCommentLongPress, {
     threshold: 800,
-    cancelOnMovement: true,
+    cancelOnMovement: 15,
     filterEvents,
   });
 
@@ -110,7 +94,13 @@ function Comment({
       rootIndex={rootIndex}
       collapsed={!!collapsed}
     >
-      <CustomIonItem
+      <IonItem
+        mode="ios" // Use iOS style activatable tap highlight
+        className={cx(
+          styles.commentItem,
+          !cannotCollapse && isTouchDevice() && "ion-activatable",
+          `comment-${comment.id}`,
+        )}
         routerLink={routerLink}
         href={undefined}
         onClick={(e) => {
@@ -118,7 +108,6 @@ function Comment({
 
           onClick?.(e);
         }}
-        className={`comment-${comment.id}`}
         {...bind()}
       >
         <ModeratableItem
@@ -128,7 +117,7 @@ function Comment({
           <PositionedContainer
             depth={absoluteDepth === depth ? depth || 0 : (depth || 0) + 1}
           >
-            <Container depth={absoluteDepth ?? depth ?? 0}>
+            <CommentContainer depth={absoluteDepth ?? depth ?? 0}>
               <ModeratableItemBannerOutlet />
               <div>
                 <CommentHeader
@@ -146,7 +135,8 @@ function Comment({
                   height={!showCollapsedComment && collapsed ? 0 : "auto"}
                 >
                   {!stub || context ? (
-                    <Content
+                    <div
+                      className={styles.content}
                       onClick={(e) => {
                         if (!(e.target instanceof HTMLElement)) return;
                         if (e.target.nodeName === "A") e.stopPropagation();
@@ -157,18 +147,19 @@ function Comment({
                           item={comment}
                           showTouchFriendlyLinks={!context}
                           mdClassName="collapse-md-margins"
+                          canModerate={canModerate}
                         />
                       )}
                       {context}
-                    </Content>
+                    </div>
                   ) : undefined}
                 </AnimateHeight>
               </div>
-            </Container>
+            </CommentContainer>
             <Save type="comment" id={commentView.comment.id} />
           </PositionedContainer>
         </ModeratableItem>
-      </CustomIonItem>
+      </IonItem>
     </SlidingNestedCommentVote>
   );
 }

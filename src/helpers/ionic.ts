@@ -1,5 +1,12 @@
+import {
+  createAnimation,
+  iosTransitionAnimation,
+  mdTransitionAnimation,
+  TransitionOptions,
+} from "@ionic/core";
 import { MouseEvent, TouchEvent } from "react";
-import { memoryHistory } from "../routes/common/Router";
+
+import { memoryHistory } from "#/routes/common/Router";
 
 const ION_CONTENT_ELEMENT_SELECTOR = "ion-content";
 
@@ -61,4 +68,30 @@ export function preventOnClickNavigationBug(e: MouseEvent) {
   }
 
   return false;
+}
+
+export const pageTransitionAnimateBackOnly = (
+  baseEl: HTMLElement,
+  opts: TransitionOptions,
+) => {
+  // Do not animate into view
+  if (opts.direction === "forward") return createAnimation();
+
+  // Later, use normal animation for swipe back
+  return opts.mode === "ios"
+    ? iosTransitionAnimation(baseEl, opts)
+    : mdTransitionAnimation(baseEl, opts);
+};
+
+export function stopIonicTapClick() {
+  document.dispatchEvent(new CustomEvent("ionGestureCaptured"));
+}
+
+export function findIonContentScrollView(page: HTMLElement) {
+  return (
+    page.querySelector(".virtual-scroller") ??
+    page
+      .querySelector("ion-content")
+      ?.shadowRoot?.querySelector(".inner-scroll")
+  );
 }

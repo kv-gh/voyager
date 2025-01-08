@@ -1,6 +1,7 @@
-import { IonToggle } from "@ionic/react";
-import { useAppDispatch, useAppSelector } from "../../../../store";
-import { InsetIonItem } from "../../shared/formatting";
+import { IonItem, IonToggle } from "@ionic/react";
+
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { setShowCollapsedComment } from "../../settingsSlice";
 
 export default function ShowCollapsed() {
@@ -10,13 +11,13 @@ export default function ShowCollapsed() {
   );
 
   return (
-    <InsetIonItem>
+    <IonItem>
       <IonToggle
         checked={showCollapsedComment}
         onIonChange={(e) => dispatch(setShowCollapsedComment(e.detail.checked))}
       >
         Show Collapsed Comment
       </IonToggle>
-    </InsetIonItem>
+    </IonItem>
   );
 }

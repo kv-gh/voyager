@@ -1,42 +1,34 @@
-import { IonNav, IonSpinner } from "@ionic/react";
-import Welcome from "./welcome/Welcome";
-import { styled } from "@linaria/react";
-import { useCallback, useContext } from "react";
 import { IonNavCustomEvent } from "@ionic/core";
-import { DynamicDismissableModalContext } from "../../shared/DynamicDismissableModal";
+import { IonNav } from "@ionic/react";
+import { useContext, useState } from "react";
 
-export const Spinner = styled(IonSpinner)`
-  width: 1.5rem;
-`;
+import { DynamicDismissableModalContext } from "#/features/shared/DynamicDismissableModal";
 
-export const Centered = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-`;
+import Welcome from "./welcome/Welcome";
 
 function blurDocument() {
   (document.activeElement as HTMLElement)?.blur();
 }
 
 export default function LoginNav() {
+  const [root] = useState(
+    () =>
+      function render() {
+        return <Welcome />;
+      },
+  );
+
   const { setCanDismiss } = useContext(DynamicDismissableModalContext);
 
-  const onIonNavDidChange = useCallback(
-    (event: IonNavCustomEvent<void>) => {
-      // If swiped back to root, allow swipe to dismiss
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if ((event.target as any).getLength() === 1) {
-        setCanDismiss(true);
-      }
-    },
-    [setCanDismiss],
-  );
+  async function onIonNavDidChange(event: IonNavCustomEvent<void>) {
+    if ((await event.target.getLength()) === 1) {
+      setCanDismiss(true);
+    }
+  }
 
   return (
     <IonNav
-      root={() => <Welcome />}
+      root={root}
       onIonNavWillChange={blurDocument}
       onIonNavDidChange={onIonNavDidChange}
     />

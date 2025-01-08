@@ -1,48 +1,27 @@
-import { CommentView } from "lemmy-js-client";
-import { CustomIonItem } from "../Comment";
-import CommentHr from "./CommentHr";
-import { useContext, useState } from "react";
-import { CommentsContext } from "./CommentsContext";
-import useClient from "../../../helpers/useClient";
-import { IonIcon, IonSpinner } from "@ionic/react";
+import { IonIcon, IonItem, IonSpinner } from "@ionic/react";
 import { chevronDown } from "ionicons/icons";
+import { CommentView } from "lemmy-js-client";
+import { useContext, useState } from "react";
 import AnimateHeight from "react-animate-height";
-import { MAX_DEFAULT_COMMENT_DEPTH } from "../../../helpers/lemmy";
-import useAppToast from "../../../helpers/useAppToast";
-import { receivedComments } from "../commentSlice";
+
+import CommentContainer from "#/features/comment/elements/CommentContainer";
+import { PositionedContainer } from "#/features/comment/elements/PositionedContainer";
 import {
-  OCommentThreadCollapse,
   defaultThreadCollapse,
-} from "../../settings/settingsSlice";
-import { useAppDispatch, useAppSelector } from "../../../store";
-import { styled } from "@linaria/react";
-import { PositionedContainer } from "../elements/PositionedContainer";
-import { Container } from "../elements/Container";
+  OCommentThreadCollapse,
+} from "#/features/settings/settingsSlice";
+import { cx } from "#/helpers/css";
+import { MAX_DEFAULT_COMMENT_DEPTH } from "#/helpers/lemmy";
+import useAppToast from "#/helpers/useAppToast";
+import useClient from "#/helpers/useClient";
+import { useAppDispatch, useAppSelector } from "#/store";
 
-const MoreRepliesBlock = styled.div<{ hidden: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
+import { receivedComments } from "../commentSlice";
+import CommentHr from "./CommentHr";
+import { CommentsContext } from "./CommentsContext";
 
-  color: var(--ion-color-primary);
-
-  opacity: ${({ hidden }) => (hidden ? 0 : 1)};
-`;
-
-const ChevronIcon = styled(IonIcon)`
-  font-size: 1rem;
-`;
-
-const StyledIonSpinner = styled(IonSpinner)`
-  width: 1.25rem;
-  opacity: 0.6;
-
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-`;
+import commentStyles from "../Comment.module.css";
+import styles from "./CommentExpander.module.css";
 
 interface CommentExpanderProps {
   depth: number;
@@ -107,19 +86,25 @@ export default function CommentExpander({
   return (
     <AnimateHeight duration={200} height={collapsed ? 0 : "auto"}>
       <CommentHr depth={depth + 1} />
-      <CustomIonItem href={undefined} onClick={fetchChildren}>
+      <IonItem
+        className={commentStyles.commentItem}
+        href={undefined}
+        onClick={fetchChildren}
+      >
         <PositionedContainer
           depth={absoluteDepth === depth ? depth + 1 : depth + 2}
         >
-          <Container depth={absoluteDepth + 1} hidden={loading}>
-            <MoreRepliesBlock hidden={loading}>
+          <CommentContainer depth={absoluteDepth + 1} hidden={loading}>
+            <div
+              className={cx(styles.moreRepliesBlock, loading && styles.hidden)}
+            >
               {missing} more {missing === 1 ? "reply" : "replies"}
-              <ChevronIcon icon={chevronDown} />
-            </MoreRepliesBlock>
-            {loading && <StyledIonSpinner />}
-          </Container>
+              <IonIcon className={styles.chevronIcon} icon={chevronDown} />
+            </div>
+            {loading && <IonSpinner className={styles.spinner} />}
+          </CommentContainer>
         </PositionedContainer>
-      </CustomIonItem>
+      </IonItem>
     </AnimateHeight>
   );
 }

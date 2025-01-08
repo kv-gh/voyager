@@ -1,23 +1,20 @@
-import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
-import { VitePWA } from "vite-plugin-pwa";
-import svgr from "vite-plugin-svgr";
 import legacy from "@vitejs/plugin-legacy";
-import wyw from "@wyw-in-js/vite";
+import react from "@vitejs/plugin-react";
+import { ManifestOptions, VitePWA } from "vite-plugin-pwa";
+import svgr from "vite-plugin-svgr";
+import { defineConfig } from "vitest/config";
 
-import { readFileSync } from "fs";
-
-const manifest = JSON.parse(readFileSync("./manifest.json", "utf-8"));
+// @ts-expect-error -- Waiting for stable typescript eslint config
+// https://eslint.org/docs/latest/use/configure/configuration-files#typescript-configuration-files
+import compilerOptions from "./compilerOptions.js";
+import manifest from "./manifest.json";
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    react(),
-    wyw({
-      displayName: process.env.NODE_ENV === "development",
-      include: ["**/*.{ts,tsx}"],
-      babelOptions: {
-        presets: ["@babel/preset-typescript", "@babel/preset-react"],
+    react({
+      babel: {
+        plugins: [["babel-plugin-react-compiler", compilerOptions]],
       },
     }),
     svgr(),
@@ -27,8 +24,9 @@ export default defineConfig({
       },
       registerType: "prompt",
       manifestFilename: "manifest.json",
-      manifest,
+      manifest: manifest as ManifestOptions, // https://github.com/microsoft/TypeScript/issues/32063
       workbox: {
+        maximumFileSizeToCacheInBytes: 2097152 * 2,
         runtimeCaching: [
           {
             handler: "StaleWhileRevalidate",
@@ -44,10 +42,19 @@ export default defineConfig({
       modernPolyfills: ["es.array.at", "es.object.has-own"],
     }),
   ],
+  envPrefix: [
+    "VITE_",
+    "BUILD_FOSS_ONLY",
+    // Keep these explicit. Do not simplify to `APP_`.
+    "APP_BUILD",
+    "APP_VERSION",
+    "APP_GIT_REF",
+  ],
   // TODO: Outdated clients trying to access stale codesplit js chucks
   // break. This breaks iOS transitions.
   // Put everything into one chunk for now.
   build: {
+    chunkSizeWarningLimit: 5_000,
     rollupOptions: {
       output: {
         manualChunks: () => "index.js",
@@ -64,16 +71,16 @@ export default defineConfig({
       },
     },
   },
-  define: {
-    APP_VERSION: JSON.stringify(process.env.npm_package_version),
-    BUILD_FOSS_ONLY: !!process.env.BUILD_FOSS_ONLY,
+  esbuild: {
+    logOverride: { "unsupported-css-nesting": "silent" },
   },
   test: {
+    exclude: ["**/e2e/**", "**/node_modules/**"],
     globals: true,
     environment: "jsdom",
     setupFiles: "./src/setupTests.ts",
   },
   optimizeDeps: {
-    exclude: ["mdast-util-gfm-autolink-literal-lemmy"],
+    exclude: ["mdast-util-gfm-autolink-literal-lemmy", "remark-lemmy-spoiler"],
   },
 });

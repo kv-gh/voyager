@@ -1,52 +1,59 @@
-import { IonActionSheet, IonLabel, IonList, IonToggle } from "@ionic/react";
-import { InsetIonItem, ListHeader } from "../shared/formatting";
-import { useAppDispatch, useAppSelector } from "../../../store";
-import {
-  OSwipeActionPost,
-  OSwipeActionComment,
-  SwipeAction,
-  SwipeActions,
-  OSwipeActionInbox,
-  OSwipeActionAll,
-  OLongSwipeTriggerPointType,
-} from "../../../services/db";
-import SettingSelector from "../shared/SettingSelector";
-import {
-  setPostSwipeActionFarEnd,
-  setPostSwipeActionFarStart,
-  setPostSwipeActionEnd,
-  setPostSwipeActionStart,
-  setCommentSwipeActionFarEnd,
-  setCommentSwipeActionFarStart,
-  setCommentSwipeActionEnd,
-  setCommentSwipeActionStart,
-  setInboxSwipeActionFarEnd,
-  setInboxSwipeActionFarStart,
-  setInboxSwipeActionEnd,
-  setInboxSwipeActionStart,
-  setAllSwipesToDefault,
-  setDisableLeftSwipes,
-  setDisableRightSwipes,
-  setLongSwipeTriggerPoint,
-} from "./gestureSlice";
-import { ActionCreatorWithPayload } from "@reduxjs/toolkit";
-import { startCase } from "lodash";
-import { useState } from "react";
 import { IonActionSheetCustomEvent, OverlayEventDetail } from "@ionic/core";
-import ShortSwipeSvg from "./swipeShort.svg?react";
-import LongSwipeSvg from "./swipeLong.svg?react";
+import {
+  IonActionSheet,
+  IonItem,
+  IonLabel,
+  IonList,
+  IonToggle,
+} from "@ionic/react";
+import { ActionCreatorWithPayload } from "@reduxjs/toolkit";
+import { startCase } from "es-toolkit";
 import {
   arrowDownOutline,
   arrowUndoOutline,
   arrowUpOutline,
-  shareOutline,
   bookmarkOutline,
   chevronCollapseOutline,
+  chevronDownOutline,
   eyeOffOutline,
   mailUnreadOutline,
-  chevronDownOutline,
 } from "ionicons/icons";
-import { isNative } from "../../../helpers/device";
+import { useState } from "react";
+
+import { ListHeader } from "#/features/settings/shared/formatting";
+import SettingSelector from "#/features/settings/shared/SettingSelector";
+import { getShareIcon, isNative } from "#/helpers/device";
+import {
+  OLongSwipeTriggerPointType,
+  OSwipeActionAll,
+  OSwipeActionComment,
+  OSwipeActionInbox,
+  OSwipeActionPost,
+  SwipeAction,
+  SwipeActions,
+} from "#/services/db";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import {
+  setAllSwipesToDefault,
+  setCommentSwipeActionEnd,
+  setCommentSwipeActionFarEnd,
+  setCommentSwipeActionFarStart,
+  setCommentSwipeActionStart,
+  setDisableLeftSwipes,
+  setDisableRightSwipes,
+  setInboxSwipeActionEnd,
+  setInboxSwipeActionFarEnd,
+  setInboxSwipeActionFarStart,
+  setInboxSwipeActionStart,
+  setLongSwipeTriggerPoint,
+  setPostSwipeActionEnd,
+  setPostSwipeActionFarEnd,
+  setPostSwipeActionFarStart,
+  setPostSwipeActionStart,
+} from "./gestureSlice";
+import LongSwipeSvg from "./swipeLong.svg?react";
+import ShortSwipeSvg from "./swipeShort.svg?react";
 
 export default function SwipeSettings() {
   const [open, setOpen] = useState(false);
@@ -105,7 +112,7 @@ export default function SwipeSettings() {
           <IonLabel>Other</IonLabel>
         </ListHeader>
         <IonList inset>
-          <InsetIonItem>
+          <IonItem>
             <IonToggle
               checked={disableLeftSwipes === true}
               onIonChange={(e) =>
@@ -114,8 +121,8 @@ export default function SwipeSettings() {
             >
               Disable Left Swipes
             </IonToggle>
-          </InsetIonItem>
-          <InsetIonItem>
+          </IonItem>
+          <IonItem>
             <IonToggle
               checked={disableRightSwipes === true}
               onIonChange={(e) =>
@@ -124,7 +131,7 @@ export default function SwipeSettings() {
             >
               Disable Right Swipes
             </IonToggle>
-          </InsetIonItem>
+          </IonItem>
           <SettingSelector
             title="Long Swipe Trigger Point"
             openTitle="When the long swipe action should trigger..."
@@ -132,7 +139,7 @@ export default function SwipeSettings() {
             setSelected={setLongSwipeTriggerPoint}
             options={OLongSwipeTriggerPointType}
           />
-          <InsetIonItem button onClick={() => setOpen(true)} detail={false}>
+          <IonItem button onClick={() => setOpen(true)} detail={false}>
             <IonLabel color="primary">Reset All Gestures</IonLabel>
             <IonActionSheet
               isOpen={open}
@@ -157,7 +164,7 @@ export default function SwipeSettings() {
                 },
               ]}
             />
-          </InsetIonItem>
+          </IonItem>
         </IonList>
       </>
     </>
@@ -174,7 +181,7 @@ const swipeIcons = {
   [OSwipeActionAll.CollapseToTop]: chevronCollapseOutline,
   [OSwipeActionAll.Collapse]: chevronDownOutline,
   [OSwipeActionAll.MarkUnread]: mailUnreadOutline,
-  [OSwipeActionAll.Share]: shareOutline,
+  [OSwipeActionAll.Share]: getShareIcon(),
 };
 
 interface SwipeListProps {

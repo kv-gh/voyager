@@ -1,3 +1,5 @@
+import { useIonModal } from "@ionic/react";
+import { noop } from "es-toolkit";
 import {
   homeOutline,
   libraryOutline,
@@ -6,18 +8,21 @@ import {
   pinOutline,
   shieldCheckmarkOutline,
 } from "ionicons/icons";
-import { ODefaultFeedType } from "../../../../services/db";
-import { useAppDispatch, useAppSelector } from "../../../../store";
-import { updateDefaultFeed } from "../../settingsSlice";
-import SettingSelector from "../../shared/SettingSelector";
-import { loggedInSelector, handleSelector } from "../../../auth/authSelectors";
-import { useIonModal } from "@ionic/react";
-import CommunitySelectorModal from "../../../shared/selectorModals/CommunitySelectorModal";
 import { CommunityView } from "lemmy-js-client";
 import { useContext } from "react";
-import { PageContext } from "../../../auth/PageContext";
-import { getHandle } from "../../../../helpers/lemmy";
-import useSupported from "../../../../helpers/useSupported";
+
+import {
+  handleSelector,
+  loggedInSelector,
+} from "#/features/auth/authSelectors";
+import { PageContext } from "#/features/auth/PageContext";
+import SettingSelector from "#/features/settings/shared/SettingSelector";
+import CommunitySelectorModal from "#/features/shared/selectorModals/CommunitySelectorModal";
+import { getHandle } from "#/helpers/lemmy";
+import { ODefaultFeedType } from "#/services/db";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import { updateDefaultFeed } from "../../settingsSlice";
 
 export default function DefaultFeed() {
   const dispatch = useAppDispatch();
@@ -27,7 +32,6 @@ export default function DefaultFeed() {
   const loggedIn = useAppSelector(loggedInSelector);
   const handle = useAppSelector(handleSelector);
   const { pageRef } = useContext(PageContext);
-  const moderatedFeedSupported = useSupported("Modded Feed");
 
   const [presentCommunitySelectorModal, onDismiss] = useIonModal(
     CommunitySelectorModal,
@@ -48,10 +52,8 @@ export default function DefaultFeed() {
     },
   );
 
-  // When lemmy v0.18 support removed, this can be removed
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const options: any = { ...ODefaultFeedType };
-  if (!moderatedFeedSupported) delete options["Moderating"];
 
   if (!loggedIn) {
     delete options["Home"];
@@ -68,7 +70,7 @@ export default function DefaultFeed() {
         if (type === ODefaultFeedType.Community) {
           presentCommunitySelectorModal({ cssClass: "small" });
 
-          return () => {}; // nothing to dispatch
+          return noop; // nothing to dispatch
         }
 
         return updateDefaultFeed({ type });
@@ -85,9 +87,7 @@ export default function DefaultFeed() {
       getSelectedLabel={(option) => {
         if (option === ODefaultFeedType.CommunityList) return "List";
         if (option === ODefaultFeedType.Community)
-          // TODO SettingSelector should handle being passed a non-string item
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return `c/${(defaultFeed as any).name}`;
+          if ("name" in defaultFeed) return `c/${defaultFeed.name}`;
       }}
     />
   );

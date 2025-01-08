@@ -1,54 +1,20 @@
-import ReactMarkdown, { Options as ReactMarkdownOptions } from "react-markdown";
-import LinkInterceptor from "./LinkInterceptor";
-import customRemarkGfm from "./customRemarkGfm";
-import MarkdownImg from "./MarkdownImg";
-import InAppExternalLink from "../InAppExternalLink";
-import { useAppSelector } from "../../../store";
-import { css, cx } from "@linaria/core";
-import superSub from "remark-supersub";
-import Table from "./components/Table";
 import spoiler from "@aeharding/remark-lemmy-spoiler";
-import Summary from "./components/spoiler/Summary";
+import ReactMarkdown, { Options as ReactMarkdownOptions } from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
+import superSub from "remark-supersub-lemmy";
+
+import { cx } from "#/helpers/css";
+import { useAppSelector } from "#/store";
+
+import InAppExternalLink from "../InAppExternalLink";
 import Details from "./components/spoiler/Details";
-import spoilerRehype from "./spoilerRehype";
+import Summary from "./components/spoiler/Summary";
+import Table from "./components/Table";
+import customRemarkGfm from "./customRemarkGfm";
+import LinkInterceptor from "./LinkInterceptor";
+import MarkdownImg from "./MarkdownImg";
 
-const markdownCss = css`
-  @media (max-width: 700px) {
-    ul,
-    ol {
-      padding-left: 24px;
-    }
-  }
-
-  code {
-    white-space: pre-wrap;
-  }
-
-  blockquote {
-    padding-left: 0.5rem;
-    border-left: 3px solid var(--ion-color-light);
-    margin-left: 0;
-  }
-
-  hr {
-    background-color: var(
-      --ion-border-color,
-      var(--ion-color-step-250, #c8c7cc)
-    );
-
-    min-width: min(100%, 100px);
-    width: 80%;
-
-    height: 2px;
-  }
-
-  ol,
-  ul {
-    li > p:first-child:last-child {
-      margin: 0;
-    }
-  }
-`;
+import styles from "./Markdown.module.css";
 
 export interface MarkdownProps
   extends Omit<ReactMarkdownOptions, "remarkPlugins"> {
@@ -77,7 +43,7 @@ export default function Markdown({
   return (
     <ReactMarkdown
       {...props}
-      className={cx(props.className, markdownCss)}
+      className={cx(props.className, styles.markdown)}
       components={{
         img: (props) => (
           <MarkdownImg {...props} onClick={(e) => e.stopPropagation()} />
@@ -100,8 +66,8 @@ export default function Markdown({
         [customRemarkGfm, { connectedInstance }],
         superSub,
         spoiler,
-        spoilerRehype,
       ]}
+      rehypePlugins={[[rehypeHighlight, { detect: true }]]}
     />
   );
 }

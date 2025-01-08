@@ -1,10 +1,5 @@
 import { useIonActionSheet, useIonAlert } from "@ionic/react";
-import store, { useAppDispatch } from "../../store";
-import { useCallback, useContext, useMemo, useState } from "react";
-import useAppToast from "../../helpers/useAppToast";
-import { CommentView } from "lemmy-js-client";
-import { localUserSelector } from "../auth/siteSlice";
-import { getCanModerate } from "./useCanModerate";
+import { compact } from "es-toolkit";
 import {
   checkmarkCircleOutline,
   colorWandOutline,
@@ -12,23 +7,31 @@ import {
   shieldCheckmarkOutline,
   trashOutline,
 } from "ionicons/icons";
+import { CommentView } from "lemmy-js-client";
+import { useCallback, useContext, useMemo, useState } from "react";
+
+import { PageContext } from "#/features/auth/PageContext";
+import { localUserSelector } from "#/features/auth/siteSlice";
+import {
+  modDistinguishComment,
+  modNukeCommentChain,
+  modRemoveComment,
+} from "#/features/comment/commentSlice";
+import { trashEllipse } from "#/features/icons";
+import { banUser } from "#/features/user/userSlice";
 import {
   buildBanFailed,
   buildBanned,
   commentApproved,
   commentDistinguished,
-  commentRemoved,
-} from "../../helpers/toastMessages";
-import {
-  modDistinguishComment,
-  modNukeCommentChain,
-  modRemoveComment,
-} from "../comment/commentSlice";
-import { stringifyReports } from "./usePostModActions";
+  commentRemovedMod,
+} from "#/helpers/toastMessages";
+import useAppToast from "#/helpers/useAppToast";
+import store, { useAppDispatch } from "#/store";
+
 import { reportsByCommentIdSelector, resolveCommentReport } from "./modSlice";
-import { banUser } from "../user/userSlice";
-import { PageContext } from "../auth/PageContext";
-import { compact } from "lodash";
+import { getCanModerate } from "./useCanModerate";
+import { stringifyReports } from "./usePostModActions";
 
 export default function useCommentModActions(commentView: CommentView) {
   const dispatch = useAppDispatch();
@@ -98,9 +101,9 @@ export default function useCommentModActions(commentView: CommentView) {
               icon: trashOutline,
               handler: () => {
                 (async () => {
-                  await dispatch(modRemoveComment(comment.id, true));
+                  await dispatch(modRemoveComment(comment, true));
 
-                  presentToast(commentRemoved);
+                  presentToast(commentRemovedMod);
                 })();
               },
             }
@@ -109,30 +112,59 @@ export default function useCommentModActions(commentView: CommentView) {
               icon: checkmarkCircleOutline,
               handler: () => {
                 (async () => {
-                  await dispatch(modRemoveComment(comment.id, false));
+                  await dispatch(modRemoveComment(comment, false));
 
                   presentToast(commentApproved);
                 })();
               },
             },
+        !comment.removed && {
+          text: "Remove With Reason",
+          icon: trashEllipse,
+          handler: () => {
+            presentAlert({
+              message: "Remove with reason",
+              buttons: [
+                {
+                  text: "Remove",
+                  cssClass: "mod",
+                  handler: ({ reason }) => {
+                    (async () => {
+                      await dispatch(modRemoveComment(comment, true, reason));
+
+                      presentToast(commentRemovedMod);
+                    })();
+                  },
+                },
+                { text: "Cancel", role: "cancel", cssClass: "mod" },
+              ],
+              inputs: [
+                {
+                  placeholder: "Public removal reason",
+                  name: "reason",
+                },
+              ],
+            });
+          },
+        },
         {
           text: "Comment Nuke",
           icon: colorWandOutline,
           handler: () => {
-            presentAlert(
-              `Remove ${
+            presentAlert({
+              message: `Remove ${
                 commentView.counts.child_count + 1
               } comments in comment chain?`,
-              [
+              buttons: [
                 {
                   text: "Begone",
                   cssClass: "mod",
-                  handler: () => {
+                  handler: ({ reason }) => {
                     (async () => {
                       setLoading(true);
 
                       try {
-                        await dispatch(modNukeCommentChain(comment.id));
+                        await dispatch(modNukeCommentChain(comment.id, reason));
                       } finally {
                         setLoading(false);
                       }
@@ -141,7 +173,13 @@ export default function useCommentModActions(commentView: CommentView) {
                 },
                 { text: "Cancel", role: "cancel", cssClass: "mod" },
               ],
-            );
+              inputs: [
+                {
+                  placeholder: "Reason (public, optional)",
+                  name: "reason",
+                },
+              ],
+            });
           },
         },
         role === "mod" || role === "admin-local"

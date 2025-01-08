@@ -1,6 +1,9 @@
+import { imageOutline, listOutline } from "ionicons/icons";
+
+import SettingSelector from "#/features/settings/shared/SettingSelector";
+import { useAppSelector } from "#/store";
+
 import { OPostAppearanceType, setPostAppearance } from "../../settingsSlice";
-import { useAppSelector } from "../../../../store";
-import SettingSelector from "../../shared/SettingSelector";
 
 export default function PostSize() {
   const postsAppearanceType = useAppSelector(
@@ -13,6 +16,10 @@ export default function PostSize() {
       selected={postsAppearanceType}
       setSelected={setPostAppearance}
       options={OPostAppearanceType}
+      optionIcons={{
+        [OPostAppearanceType.Compact]: listOutline,
+        [OPostAppearanceType.Large]: imageOutline,
+      }}
     />
   );
 }

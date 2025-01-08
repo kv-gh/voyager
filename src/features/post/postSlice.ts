@@ -1,14 +1,20 @@
-import { PayloadAction, createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import { PostView } from "lemmy-js-client";
-import { AppDispatch, RootState } from "../../store";
+import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { Post, PostView } from "lemmy-js-client";
+
 import {
   clientSelector,
-  userHandleSelector,
   jwtSelector,
-} from "../auth/authSelectors";
-import { IPostMetadata, db } from "../../services/db";
-import { isLemmyError } from "../../helpers/lemmy";
-import { resolvePostReport } from "../moderation/modSlice";
+  userHandleSelector,
+} from "#/features/auth/authSelectors";
+import { resolvePostReport } from "#/features/moderation/modSlice";
+import {
+  fetchTagsForHandles,
+  updateTagVotes,
+} from "#/features/tags/userTagSlice";
+import { getRemoteHandle } from "#/helpers/lemmy";
+import { isLemmyError } from "#/helpers/lemmyErrors";
+import { db, IPostMetadata } from "#/services/db";
+import { AppDispatch, RootState } from "#/store";
 
 interface PostHiddenData {
   /**
@@ -222,6 +228,10 @@ export const receivedPosts = createAsyncThunk(
       postHiddenById[postMetadata.post_id] = !!postMetadata.hidden;
     }
 
+    thunkAPI.dispatch(
+      fetchTagsForHandles(posts.map((c) => getRemoteHandle(c.creator))),
+    );
+
     return {
       posts,
       postHiddenById,
@@ -244,14 +254,15 @@ export const {
 export default postSlice.reducer;
 
 export const savePost =
-  (postId: number, save: boolean) =>
+  (post: PostView, save: boolean) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
+    const postId = post.post.id;
     const oldSaved = getState().post.postSavedById[postId];
 
     const { upvoteOnSave } = getState().settings.general.posts;
 
     if (upvoteOnSave && save) {
-      dispatch(voteOnPost(postId, 1));
+      dispatch(voteOnPost(post, 1));
     }
 
     dispatch(updatePostSaved({ postId, saved: save }));
@@ -279,7 +290,7 @@ export const setPostRead =
 
     dispatch(updatePostRead({ postId }));
     await clientSelector(getState())?.markPostAsRead({
-      post_id: postId,
+      post_ids: [postId],
       read: true,
     });
   };
@@ -296,13 +307,23 @@ export const setPostHidden =
   };
 
 export const voteOnPost =
-  (postId: number, vote: 1 | -1 | 0) =>
+  (post: PostView, vote: 1 | -1 | 0) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
+    const postId = post.post.id;
+
     const oldVote = getState().post.postVotesById[postId];
 
     dispatch(updatePostVote({ postId, vote }));
 
     dispatch(setPostRead(postId));
+
+    dispatch(
+      updateTagVotes({
+        handle: getRemoteHandle(post.creator),
+        oldVote,
+        newVote: vote,
+      }),
+    );
 
     try {
       await clientSelector(getState())?.likePost({
@@ -311,6 +332,15 @@ export const voteOnPost =
       });
     } catch (error) {
       dispatch(updatePostVote({ postId, vote: oldVote }));
+
+      dispatch(
+        updateTagVotes({
+          handle: getRemoteHandle(post.creator),
+          oldVote: vote,
+          newVote: oldVote,
+        }),
+      );
+
       throw error;
     }
   };
@@ -324,10 +354,10 @@ export const getPost =
         id,
       });
     } catch (error) {
-      // I think there is a bug in lemmy-js-client where it tries to parse 404 with non-json body
       if (
-        isLemmyError(error, "couldnt_find_post") ||
-        error instanceof SyntaxError
+        isLemmyError(error, "couldnt_find_post" as never) || // TODO lemmy 0.19 and less support
+        isLemmyError(error, "not_found") ||
+        isLemmyError(error, "unknown")
       ) {
         dispatch(receivedPostNotFound(id));
       }
@@ -341,24 +371,10 @@ export const getPost =
 
 export const deletePost =
   (id: number) => async (dispatch: AppDispatch, getState: () => RootState) => {
-    try {
-      await clientSelector(getState()).deletePost({
-        post_id: id,
-        deleted: true,
-      });
-    } catch (error) {
-      // I think there is a bug in lemmy-js-client where it tries to parse 404 with non-json body
-      if (
-        isLemmyError(error, "couldnt_find_post") ||
-        error instanceof SyntaxError
-      ) {
-        dispatch(receivedPostNotFound(id));
-
-        return;
-      }
-
-      throw error;
-    }
+    await clientSelector(getState()).deletePost({
+      post_id: id,
+      deleted: true,
+    });
 
     dispatch(postDeleted(id));
   };
@@ -394,15 +410,16 @@ export const postHiddenByIdSelector = (state: RootState) => {
 };
 
 export const modRemovePost =
-  (postId: number, removed: boolean) =>
+  (post: Post, removed: boolean, reason?: string) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
     const response = await clientSelector(getState())?.removePost({
-      post_id: postId,
+      post_id: post.id,
       removed,
+      reason,
     });
 
     dispatch(receivedPosts([response.post_view]));
-    await dispatch(resolvePostReport(postId));
+    await dispatch(resolvePostReport(post.id));
   };
 
 export const modLockPost =

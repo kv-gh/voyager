@@ -1,9 +1,8 @@
-import { styled } from "@linaria/react";
+import { IonIcon } from "@ionic/react";
+import { play, volumeHigh, volumeOff } from "ionicons/icons";
 import {
-  CSSProperties,
   ChangeEvent,
-  forwardRef,
-  memo,
+  CSSProperties,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -12,92 +11,13 @@ import {
   useState,
 } from "react";
 import { useInView } from "react-intersection-observer";
-import useShouldAutoplay from "../../../core/listeners/network/useShouldAutoplay";
-import { IonIcon } from "@ionic/react";
-import { play, volumeHigh, volumeOff } from "ionicons/icons";
-import { PlainButton } from "../../shared/PlainButton";
-import { getVideoSrcForUrl } from "../../../helpers/url";
 
-const Container = styled.div`
-  position: relative;
-  overflow: hidden;
+import useShouldAutoplay from "#/core/listeners/network/useShouldAutoplay";
+import { cx } from "#/helpers/css";
+import { stopIonicTapClick } from "#/helpers/ionic";
+import { getVideoSrcForUrl } from "#/helpers/url";
 
-  display: flex;
-`;
-
-const sharedProgressBarCss = `
-  background: rgba(0, 0, 0, 0.0045);
-  backdrop-filter: blur(30px);
-`;
-
-const Progress = styled.progress`
-  position: absolute;
-  bottom: -6px;
-  right: 0;
-  left: 0;
-  width: 100%;
-  appearance: none;
-  height: 12px;
-  transform: translate3d(0, 0, 0);
-
-  background: none;
-  border: 0;
-
-  &::-webkit-progress-bar {
-    ${sharedProgressBarCss}
-  }
-
-  @supports selector(::-moz-progress-bar) {
-    ${sharedProgressBarCss}
-  }
-
-  &::-moz-progress-bar {
-    background: rgba(255, 255, 255, 0.3);
-  }
-
-  &::-webkit-progress-value {
-    background: rgba(255, 255, 255, 0.3);
-  }
-`;
-
-const VideoEl = styled.video`
-  flex: 1;
-
-  width: 100%;
-  object-fit: contain;
-
-  overflow: hidden;
-`;
-
-const VolumeButton = styled(PlainButton)`
-  position: absolute;
-  top: 0;
-  right: 0;
-
-  padding: 14px;
-  font-size: 26px;
-
-  color: #aaa;
-
-  svg {
-    filter: blur(10px) invert(80%);
-  }
-`;
-
-const PlayOverlay = styled.div`
-  position: absolute;
-  inset: 0;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  font-size: 80px;
-
-  color: #fff;
-
-  background: rgba(0, 0, 0, 0.1);
-`;
+import styles from "./Player.module.css";
 
 export interface PlayerProps {
   src: string;
@@ -109,20 +29,21 @@ export interface PlayerProps {
 
   className?: string;
   style?: CSSProperties;
+  alt?: string;
+
+  ref?: React.RefObject<HTMLVideoElement>;
 }
 
-const Player = forwardRef<HTMLVideoElement, PlayerProps>(function Player(
-  {
-    src: potentialSrc,
-    nativeControls,
-    className,
-    progress: showProgress = !nativeControls,
-    volume = true,
-    autoPlay: videoAllowedToAutoplay = true,
-    ...rest
-  },
-  forwardedRef,
-) {
+export default function Player({
+  src: potentialSrc,
+  nativeControls,
+  className,
+  progress: showProgress = !nativeControls,
+  volume = true,
+  autoPlay: videoAllowedToAutoplay = true,
+  ref,
+  ...rest
+}: PlayerProps) {
   const videoRef = useRef<HTMLVideoElement>();
 
   const [muted, setMuted] = useState(true);
@@ -136,11 +57,7 @@ const Player = forwardRef<HTMLVideoElement, PlayerProps>(function Player(
 
   const src = useMemo(() => getVideoSrcForUrl(potentialSrc), [potentialSrc]);
 
-  useImperativeHandle(
-    forwardedRef,
-    () => videoRef.current as HTMLVideoElement,
-    [],
-  );
+  useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement, []);
 
   const [inViewRef, inView] = useInView({
     threshold: 0.5,
@@ -194,9 +111,10 @@ const Player = forwardRef<HTMLVideoElement, PlayerProps>(function Player(
   }, [inView, pause, resume]);
 
   return (
-    <Container className={className}>
-      <VideoEl
+    <span className={cx(styles.container, className)}>
+      <video
         {...rest}
+        className={styles.videoEl}
         ref={setRefs}
         src={`${src}#t=0.001`}
         loop
@@ -224,12 +142,16 @@ const Player = forwardRef<HTMLVideoElement, PlayerProps>(function Player(
           if (!showProgress) return;
           setProgress(e.target.currentTime / e.target.duration);
         }}
+        aria-label={rest.alt}
       />
-      {showProgress && progress !== undefined && <Progress value={progress} />}
+      {showProgress && progress !== undefined && (
+        <progress className={styles.progress} value={progress} />
+      )}
       {!nativeControls && (
         <>
           {!showBigPlayButton && volume && (
-            <VolumeButton
+            <button
+              className={styles.volumeButton}
               onClick={(e) => {
                 setMuted(!muted);
                 if (videoRef.current) videoRef.current.muted = !muted;
@@ -237,12 +159,17 @@ const Player = forwardRef<HTMLVideoElement, PlayerProps>(function Player(
                 e.preventDefault(); // reverse-portal
                 e.stopPropagation(); // video in comments
               }}
+              onTouchStart={() => {
+                // weird reverse portal event dispatching (see OutPortalEventDispatcher)
+                requestAnimationFrame(() => stopIonicTapClick());
+              }}
             >
               <IonIcon icon={muted ? volumeOff : volumeHigh} />
-            </VolumeButton>
+            </button>
           )}
           {showBigPlayButton && (
-            <PlayOverlay
+            <span
+              className={styles.playOverlay}
               onClick={(e) => {
                 e.preventDefault(); // reverse-portal
                 e.stopPropagation(); // video in comments
@@ -251,12 +178,10 @@ const Player = forwardRef<HTMLVideoElement, PlayerProps>(function Player(
               }}
             >
               <IonIcon icon={play} />
-            </PlayOverlay>
+            </span>
           )}
         </>
       )}
-    </Container>
+    </span>
   );
-});
-
-export default memo(Player);
+}

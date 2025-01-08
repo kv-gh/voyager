@@ -1,15 +1,21 @@
-import { IonButtons, IonPage, IonTitle, IonToolbar } from "@ionic/react";
-import { useParams } from "react-router";
-import AppBackButton from "../../../features/shared/AppBackButton";
-import { useAppDispatch, useAppSelector } from "../../../store";
+import {
+  IonBackButton,
+  IonButtons,
+  IonContent,
+  IonPage,
+  IonTitle,
+  IonToolbar,
+} from "@ionic/react";
 import { memo, useEffect, useRef } from "react";
-import { getCommunity } from "../../../features/community/communitySlice";
-import { useBuildGeneralBrowseLink } from "../../../helpers/routes";
-import { CenteredSpinner } from "../posts/PostPage";
-import AppContent from "../../../features/shared/AppContent";
-import Sidebar from "../../../features/sidebar/Sidebar";
-import { useSetActivePage } from "../../../features/auth/AppContext";
-import AppHeader from "../../../features/shared/AppHeader";
+import { useParams } from "react-router";
+
+import { useSetActivePage } from "#/features/auth/AppContext";
+import { getCommunity } from "#/features/community/communitySlice";
+import AppHeader from "#/features/shared/AppHeader";
+import { CenteredSpinner } from "#/features/shared/CenteredSpinner";
+import Sidebar from "#/features/sidebar/Sidebar";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
+import { useAppDispatch, useAppSelector } from "#/store";
 
 interface CommunitySidebarPageProps {
   community: string;
@@ -48,8 +54,7 @@ const CommunitySidebarPageContent = memo(function CommunitySidebarPageContent({
       <AppHeader>
         <IonToolbar>
           <IonButtons slot="start">
-            <AppBackButton
-              defaultText={community}
+            <IonBackButton
               defaultHref={buildGeneralBrowseLink(`/c/${community}`)}
             />
           </IonButtons>
@@ -57,13 +62,13 @@ const CommunitySidebarPageContent = memo(function CommunitySidebarPageContent({
           <IonTitle>{community}</IonTitle>
         </IonToolbar>
       </AppHeader>
-      <AppContent scrollY>
+      <IonContent>
         {communityView ? (
           <Sidebar community={communityView} />
         ) : (
           <CenteredSpinner />
         )}
-      </AppContent>
+      </IonContent>
     </IonPage>
   );
 });

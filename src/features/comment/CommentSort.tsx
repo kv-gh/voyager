@@ -6,6 +6,7 @@ import {
   IonIcon,
 } from "@ionic/react";
 import { OverlayEventDetail } from "@ionic/react/dist/types/components/react-component-lib/interfaces";
+import { startCase } from "es-toolkit";
 import {
   arrowUpCircleOutline,
   flameOutline,
@@ -13,12 +14,11 @@ import {
   skullOutline,
   timeOutline,
 } from "ionicons/icons";
-import { useContext, useState } from "react";
-import { startCase } from "lodash";
 import { CommentSortType } from "lemmy-js-client";
-import { scrollUpIfNeeded } from "../../helpers/scrollUpIfNeeded";
-import { AppContext } from "../auth/AppContext";
-import useSupported, { is019Sort } from "../../helpers/useSupported";
+import { useContext, useState } from "react";
+
+import { AppContext } from "#/features/auth/AppContext";
+import { scrollUpIfNeeded } from "#/helpers/scrollUpIfNeeded";
 
 export const COMMENT_SORTS = [
   "Hot",
@@ -37,23 +37,20 @@ const BUTTONS: ActionSheetButton<CommentSortType>[] = COMMENT_SORTS.map(
 );
 
 interface CommentSortProps {
-  sort: CommentSortType;
+  sort: CommentSortType | undefined;
   setSort: (sort: CommentSortType) => void;
 }
 
 export default function CommentSort({ sort, setSort }: CommentSortProps) {
   const [open, setOpen] = useState(false);
   const { activePageRef } = useContext(AppContext);
-  const controversialSupported = useSupported("v0.19 Sorts");
 
-  const supportedSortButtons = controversialSupported
-    ? BUTTONS
-    : BUTTONS.filter(({ data }) => !is019Sort(data));
+  if (!sort) return;
 
   return (
     <>
-      <IonButton fill="default" onClick={() => setOpen(true)}>
-        <IonIcon icon={getSortIcon(sort)} color="primary" />
+      <IonButton onClick={() => setOpen(true)}>
+        <IonIcon icon={getSortIcon(sort)} slot="icon-only" />
       </IonButton>
       <IonActionSheet
         cssClass="left-align-buttons"
@@ -68,7 +65,7 @@ export default function CommentSort({ sort, setSort }: CommentSortProps) {
           scrollUpIfNeeded(activePageRef?.current, 1, "auto");
         }}
         header="Sort by..."
-        buttons={supportedSortButtons.map((b) => ({
+        buttons={BUTTONS.map((b) => ({
           ...b,
           role: sort === b.data ? "selected" : undefined,
         }))}

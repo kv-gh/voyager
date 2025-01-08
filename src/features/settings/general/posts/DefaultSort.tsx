@@ -1,14 +1,15 @@
-import { useAppDispatch, useAppSelector } from "../../../../store";
-import { setDefaultPostSort } from "../../settingsSlice";
+import { IonItem, IonLabel } from "@ionic/react";
+import { startCase } from "es-toolkit";
+import { PostSortType } from "lemmy-js-client";
+
 import {
   formatTopLabel,
   isTopSort,
   useSelectPostSort,
-} from "../../../feed/PostSort";
-import { InsetIonItem } from "../../shared/formatting";
-import { IonLabel } from "@ionic/react";
-import { SortType } from "lemmy-js-client";
-import { startCase } from "lodash";
+} from "#/features/feed/PostSort";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import { setDefaultPostSort } from "../../settingsSlice";
 
 export default function DefaultSort() {
   const dispatch = useAppDispatch();
@@ -16,25 +17,24 @@ export default function DefaultSort() {
     (state) => state.settings.general.posts.sort,
   );
 
-  const present = useSelectPostSort((newSort) => {
-    dispatch(setDefaultPostSort(newSort));
-  });
+  const present = useSelectPostSort(
+    (newSort) => {
+      dispatch(setDefaultPostSort(newSort));
+    },
+    { title: "Default Posts Sort..." },
+  );
 
   return (
-    <InsetIonItem
-      button
-      onClick={() => present(defaultPostSort)}
-      detail={false}
-    >
+    <IonItem button onClick={() => present(defaultPostSort)} detail={false}>
       <IonLabel className="ion-text-nowrap">Default Sort</IonLabel>
       <IonLabel slot="end" color="medium" className="ion-no-margin">
         {formatPostSort(defaultPostSort)}
       </IonLabel>
-    </InsetIonItem>
+    </IonItem>
   );
 }
 
-function formatPostSort(sort: SortType): string {
+function formatPostSort(sort: PostSortType): string {
   if (isTopSort(sort)) return `Top: ${formatTopLabel(sort)}`;
 
   return startCase(sort);

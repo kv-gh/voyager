@@ -1,62 +1,41 @@
-import { IonActionSheet, IonButton, IonIcon } from "@ionic/react";
+import { IonButton, useIonActionSheet } from "@ionic/react";
+import { compact } from "es-toolkit";
 import {
   createOutline,
-  ellipsisHorizontal,
+  eyeOffOutline,
   heartDislikeOutline,
   heartOutline,
+  removeCircleOutline,
   starOutline,
   starSharp,
-  removeCircleOutline,
   tabletPortraitOutline,
-  eyeOffOutline,
-  shareOutline,
 } from "ionicons/icons";
-import { useState } from "react";
-import useHidePosts from "../feed/useHidePosts";
-import useCommunityActions from "./useCommunityActions";
 import { Community, CommunityView } from "lemmy-js-client";
-import { useAppSelector } from "../../store";
-import { compact } from "lodash";
+
+import { useBuildTogglePostAppearanceButton } from "#/features/feed/SpecialFeedMoreActions";
+import useHidePosts from "#/features/feed/useHidePosts";
+import HeaderEllipsisIcon from "#/features/shared/HeaderEllipsisIcon";
+import { getShareIcon } from "#/helpers/device";
+import { useAppSelector } from "#/store";
+
+import useCommunityActions from "./useCommunityActions";
 
 interface MoreActionsProps {
   community: CommunityView | undefined;
 }
 
 export default function MoreActions({ community }: MoreActionsProps) {
-  const [open, setOpen] = useState(false);
+  if (!community) return buildButtonJsx();
 
-  return (
-    <>
-      <IonButton
-        disabled={!community}
-        fill="default"
-        onClick={() => setOpen(true)}
-      >
-        <IonIcon icon={ellipsisHorizontal} color="primary" />
-      </IonButton>
-
-      {community && (
-        <MoreActionsActionSheet
-          community={community?.community}
-          open={open}
-          setOpen={setOpen}
-        />
-      )}
-    </>
-  );
+  return <MoreActionsWithCommunity community={community.community} />;
 }
 
 interface MoreActionsActionSheetProps {
   community: Community;
-  open: boolean;
-  setOpen: (open: boolean) => void;
 }
 
-function MoreActionsActionSheet({
-  community,
-  open,
-  setOpen,
-}: MoreActionsActionSheetProps) {
+function MoreActionsWithCommunity({ community }: MoreActionsActionSheetProps) {
+  const [presentActionSheet] = useIonActionSheet();
   const {
     isSubscribed,
     isBlocked,
@@ -69,16 +48,16 @@ function MoreActionsActionSheet({
     share,
   } = useCommunityActions(community);
   const hidePosts = useHidePosts();
+  const buildTogglePostAppearanceButton = useBuildTogglePostAppearanceButton();
 
   const showHiddenInCommunities = useAppSelector(
     (state) => state.settings.general.posts.showHiddenInCommunities,
   );
 
-  return (
-    <IonActionSheet
-      cssClass="left-align-buttons"
-      isOpen={open}
-      buttons={compact([
+  function present() {
+    presentActionSheet({
+      cssClass: "left-align-buttons",
+      buttons: compact([
         {
           text: "Submit Post",
           cssClass: "detail",
@@ -115,9 +94,10 @@ function MoreActionsActionSheet({
             sidebar();
           },
         },
+        buildTogglePostAppearanceButton(),
         {
           text: "Share",
-          icon: shareOutline,
+          icon: getShareIcon(),
           handler: () => {
             share();
           },
@@ -134,8 +114,17 @@ function MoreActionsActionSheet({
           text: "Cancel",
           role: "cancel",
         },
-      ])}
-      onDidDismiss={() => setOpen(false)}
-    />
+      ]),
+    });
+  }
+
+  return buildButtonJsx(present);
+}
+
+function buildButtonJsx(onClick?: () => void) {
+  return (
+    <IonButton disabled={!onClick} onClick={onClick}>
+      <HeaderEllipsisIcon slot="icon-only" />
+    </IonButton>
   );
 }

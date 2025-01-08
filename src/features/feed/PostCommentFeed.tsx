@@ -1,3 +1,4 @@
+import { CommentView, PostView } from "lemmy-js-client";
 import {
   ReactElement,
   useCallback,
@@ -5,38 +6,37 @@ import {
   useEffect,
   useRef,
 } from "react";
-import Feed, { FeedProps, FetchFn } from "./Feed";
-import FeedComment from "../comment/inFeed/FeedComment";
-import { CommentView, PostView } from "lemmy-js-client";
-import { useAppDispatch, useAppSelector } from "../../store";
-import { css } from "@linaria/core";
+
+import { receivedComments } from "#/features/comment/commentSlice";
+import FeedComment from "#/features/comment/inFeed/FeedComment";
+import CommentHr from "#/features/comment/inTree/CommentHr";
+import Post from "#/features/post/inFeed/Post";
 import {
   postHiddenByIdSelector,
   receivedPosts,
   setPostRead,
-} from "../post/postSlice";
-import { receivedComments } from "../comment/commentSlice";
-import Post from "../post/inFeed/Post";
-import CommentHr from "../comment/inTree/CommentHr";
-import { FeedContext } from "./FeedContext";
+} from "#/features/post/postSlice";
 import {
   isComment,
   isPost,
   postHasFilteredKeywords,
-} from "../../helpers/lemmy";
+  postHasFilteredWebsite,
+} from "#/helpers/lemmy";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import Feed, { FeedProps, FetchFn } from "./Feed";
+import { FeedContext } from "./FeedContext";
 import { useAutohidePostIfNeeded } from "./PageTypeContext";
 
-export type PostCommentItem = PostView | CommentView;
+import styles from "./PostCommentFeed.module.css";
 
-const thickBorderCss = css`
-  border-bottom: 8px solid var(--thick-separator-color);
-`;
+export type PostCommentItem = PostView | CommentView;
 
 interface PostCommentFeed
   extends Omit<FeedProps<PostCommentItem>, "renderItemContent"> {
   communityName?: string;
   filterHiddenPosts?: boolean;
-  filterKeywords?: boolean;
+  filterKeywordsAndWebsites?: boolean;
 
   header?: ReactElement;
 }
@@ -44,7 +44,7 @@ interface PostCommentFeed
 export default function PostCommentFeed({
   fetchFn: _fetchFn,
   filterHiddenPosts = true,
-  filterKeywords = true,
+  filterKeywordsAndWebsites = true,
   filterOnRxFn: _filterOnRxFn,
   filterFn: _filterFn,
   ...rest
@@ -57,6 +57,9 @@ export default function PostCommentFeed({
   const postDeletedById = useAppSelector((state) => state.post.postDeletedById);
   const filteredKeywords = useAppSelector(
     (state) => state.settings.blocks.keywords,
+  );
+  const filteredWebsites = useAppSelector(
+    (state) => state.settings.blocks.websites,
   );
 
   const disableMarkingRead = useAppSelector(
@@ -84,7 +87,7 @@ export default function PostCommentFeed({
       case "compact":
         return undefined;
       case "large":
-        return thickBorderCss;
+        return styles.thickBottomBorder;
     }
   })();
 
@@ -113,8 +116,8 @@ export default function PostCommentFeed({
   );
 
   const fetchFn: FetchFn<PostCommentItem> = useCallback(
-    async (page) => {
-      const result = await _fetchFn(page);
+    async (page, signal) => {
+      const result = await _fetchFn(page, signal);
 
       const items = Array.isArray(result) ? result : result.data;
 
@@ -126,7 +129,6 @@ export default function PostCommentFeed({
 
       return result;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [_fetchFn, dispatch],
   );
 
@@ -153,14 +155,11 @@ export default function PostCommentFeed({
         postHidden.hidden
       )
         return false;
-      if (
-        filterKeywords &&
-        postHasFilteredKeywords(
-          item.post,
-          filterKeywords ? filteredKeywords : [],
-        )
-      )
-        return false;
+
+      if (filterKeywordsAndWebsites) {
+        if (postHasFilteredKeywords(item.post, filteredKeywords)) return false;
+        if (postHasFilteredWebsite(item.post, filteredWebsites)) return false;
+      }
 
       if (_filterFn) return _filterFn(item);
 
@@ -168,11 +167,12 @@ export default function PostCommentFeed({
     },
     [
       postHiddenById,
-      filteredKeywords,
-      filterKeywords,
       filterHiddenPosts,
+      filterKeywordsAndWebsites,
       _filterFn,
       postDeletedById,
+      filteredKeywords,
+      filteredWebsites,
     ],
   );
 

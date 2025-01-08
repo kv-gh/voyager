@@ -2,15 +2,13 @@ import {
   IonBackButton,
   IonButtons,
   IonIcon,
+  IonLabel,
   IonList,
   IonPage,
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
-import { useBuildGeneralBrowseLink } from "../../../../helpers/routes";
-import AppDetails from "./AppDetails";
-import { SettingLabel } from "../../../../features/user/Profile";
-import { IconBg } from "../SettingsPage";
+import { shuffle } from "es-toolkit";
 import {
   bug,
   handLeft,
@@ -22,22 +20,21 @@ import {
   sparkles,
   thumbsUp,
 } from "ionicons/icons";
-import { useAppSelector } from "../../../../store";
-import compliments from "./compliments.txt?raw";
-import { shuffle } from "lodash";
-import useAppToast from "../../../../helpers/useAppToast";
 import { useRef } from "react";
-import AppContent from "../../../../features/shared/AppContent";
-import { IonItemInAppExternalLink } from "../../../../features/shared/InAppExternalLink";
-import { isAndroid, isNative } from "../../../../helpers/device";
-import { useSetActivePage } from "../../../../features/auth/AppContext";
-import { VOYAGER_PRIVACY, VOYAGER_TERMS } from "../../../../helpers/voyager";
-import { styled } from "@linaria/react";
-import AppHeader from "../../../../features/shared/AppHeader";
 
-export const InsetIonItem = styled(IonItemInAppExternalLink)`
-  --background: var(--ion-tab-bar-background, var(--ion-color-step-50, #fff));
-`;
+import { useSetActivePage } from "#/features/auth/AppContext";
+import AppContent from "#/features/shared/AppContent";
+import AppHeader from "#/features/shared/AppHeader";
+import { IonItemInAppExternalLink } from "#/features/shared/InAppExternalLink";
+import { isAndroid, isNative } from "#/helpers/device";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
+import useAppToast from "#/helpers/useAppToast";
+import { VOYAGER_PRIVACY, VOYAGER_TERMS } from "#/helpers/voyager";
+import { useAppSelector } from "#/store";
+
+import { IconBg } from "../SettingsPage";
+import AppDetails from "./AppDetails";
+import compliments from "./compliments.txt?raw";
 
 export default function AboutPage() {
   const pageRef = useRef<HTMLElement>(null);
@@ -73,24 +70,24 @@ export default function AboutPage() {
       : "https://apps.apple.com/app/id6451429762?action=write-review";
 
     return (
-      <InsetIonItem
+      <IonItemInAppExternalLink
         detail
         href={href}
         target="_blank"
         rel="noopener noreferrer"
       >
-        <IconBg color="color(display-p3 1 0 0)">
+        <IconBg color="color(display-p3 1 0 0)" slot="start">
           <IonIcon icon={heart} />
         </IconBg>
-        <SettingLabel>Rate Voyager</SettingLabel>
-      </InsetIonItem>
+        <IonLabel>Rate Voyager</IonLabel>
+      </IonItemInAppExternalLink>
     );
   })();
 
   useSetActivePage(pageRef);
 
   return (
-    <IonPage className="grey-bg" ref={pageRef}>
+    <IonPage ref={pageRef} className="grey-bg">
       <AppHeader>
         <IonToolbar>
           <IonButtons slot="start">
@@ -104,82 +101,82 @@ export default function AboutPage() {
         <AppDetails />
 
         <IonList inset color="primary">
-          <InsetIonItem
+          <IonItemInAppExternalLink
             href="https://github.com/aeharding/voyager/releases"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <IconBg color="color(display-p3 0.7 0 1)" size="0.8">
+            <IconBg color="color(display-p3 0.7 0 1)" size="0.8" slot="start">
               <IonIcon icon={sparkles} />
             </IconBg>
-            <SettingLabel>What&apos;s new</SettingLabel>
-          </InsetIonItem>
-          <InsetIonItem
+            <IonLabel>What&apos;s new</IonLabel>
+          </IonItemInAppExternalLink>
+          <IonItemInAppExternalLink
             routerLink={buildGeneralBrowseLink(`/c/${appCommunityHandle}`)}
             detail
           >
-            <IconBg color="color(display-p3 0 0.8 0.3)">
+            <IconBg color="color(display-p3 0 0.8 0.3)" slot="start">
               <IonIcon icon={people} />
             </IconBg>
-            <SettingLabel>VoyagerApp Community</SettingLabel>
-          </InsetIonItem>
-          <InsetIonItem
+            <IonLabel>VoyagerApp Community</IonLabel>
+          </IonItemInAppExternalLink>
+          <IonItemInAppExternalLink
             detail
             href="https://social.harding.dev/@alex"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <IconBg color="#563acc">
+            <IconBg color="#563acc" slot="start">
               <IonIcon icon={logoMastodon} />
             </IconBg>
-            <SettingLabel>@alex@harding.dev</SettingLabel>
-          </InsetIonItem>
-          <InsetIonItem
+            <IonLabel>@alex@harding.dev</IonLabel>
+          </IonItemInAppExternalLink>
+          <IonItemInAppExternalLink
             detail
             href={VOYAGER_PRIVACY}
             target="_blank"
             rel="noopener noreferrer"
           >
-            <IconBg color="#0e7afe">
+            <IconBg color="#0e7afe" slot="start">
               <IonIcon icon={lockClosed} />
             </IconBg>
-            <SettingLabel>Privacy Policy</SettingLabel>
-          </InsetIonItem>
-          <InsetIonItem
+            <IonLabel>Privacy Policy</IonLabel>
+          </IonItemInAppExternalLink>
+          <IonItemInAppExternalLink
             detail
             href={VOYAGER_TERMS}
             target="_blank"
             rel="noopener noreferrer"
           >
-            <IconBg color="#8e8700">
+            <IconBg color="#8e8700" slot="start">
               <IonIcon icon={handLeft} />
             </IconBg>
-            <SettingLabel>Terms of Use</SettingLabel>
-          </InsetIonItem>
+            <IonLabel>Terms of Use</IonLabel>
+          </IonItemInAppExternalLink>
           {rateVoyager}
-          <InsetIonItem detail routerLink="/settings/about/thanks">
-            <IconBg color="color(display-p3 0.1 0.6 0.1)">
+          <IonItemInAppExternalLink detail routerLink="/settings/about/thanks">
+            <IconBg color="color(display-p3 0.1 0.6 0.1)" slot="start">
               <IonIcon icon={thumbsUp} />
             </IconBg>
-            <SettingLabel>Thanks To</SettingLabel>
-          </InsetIonItem>
-          <InsetIonItem
+            <IonLabel>Thanks To</IonLabel>
+          </IonItemInAppExternalLink>
+          <IonItemInAppExternalLink
             detail
             href="https://github.com/aeharding/voyager/issues"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <IconBg color="color(display-p3 0.5 0.7 0.1)">
+            <IconBg color="color(display-p3 0.5 0.7 0.1)" slot="start">
               <IonIcon icon={bug} />
             </IconBg>
-            <SettingLabel>Bug Tracker</SettingLabel>
-          </InsetIonItem>
-          <InsetIonItem detail onClick={getCompliment}>
-            <IconBg color="color(display-p3 1 0.1 0.6)" size="1.1">
+            <IonLabel>Bug Tracker</IonLabel>
+          </IonItemInAppExternalLink>
+          <IonItemInAppExternalLink detail onClick={getCompliment}>
+            <IconBg color="color(display-p3 1 0.1 0.6)" size="1.1" slot="start">
               <IonIcon icon={happy} />
             </IconBg>
-            <SettingLabel>Get a Compliment</SettingLabel>
-          </InsetIonItem>
+            <IonLabel>Get a Compliment</IonLabel>
+          </IonItemInAppExternalLink>
         </IonList>
       </AppContent>
     </IonPage>

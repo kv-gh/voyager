@@ -1,20 +1,19 @@
-import { styled } from "@linaria/react";
-import { IonButton, IonButtons } from "@ionic/react";
+import { IonButton, IonButtons, IonIcon } from "@ionic/react";
+import { arrowBackSharp } from "ionicons/icons";
 import { useContext } from "react";
-import { DynamicDismissableModalContext } from "../../../shared/DynamicDismissableModal";
 
-const AndroidIonButtons = styled(IonButtons)`
-  .ios & {
-    display: none;
-  }
-`;
+import { DynamicDismissableModalContext } from "#/features/shared/DynamicDismissableModal";
+
+import styles from "./AndroidClose.module.css";
 
 export default function AndroidClose() {
   const { dismiss } = useContext(DynamicDismissableModalContext);
 
   return (
-    <AndroidIonButtons slot="end">
-      <IonButton onClick={dismiss}>Close</IonButton>
-    </AndroidIonButtons>
+    <IonButtons className={styles.androidIonButtons} slot="start">
+      <IonButton onClick={dismiss}>
+        <IonIcon icon={arrowBackSharp} slot="icon-only" />
+      </IonButton>
+    </IonButtons>
   );
 }

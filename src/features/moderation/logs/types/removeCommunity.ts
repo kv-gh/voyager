@@ -1,13 +1,17 @@
+import { arrowUndoCircle, trash } from "ionicons/icons";
 import { ModRemoveCommunityView } from "lemmy-js-client";
+
+import { buildCommunityLink } from "#/helpers/appLinkBuilder";
+import { getHandle } from "#/helpers/lemmy";
+
 import { LogEntryData } from "../ModlogItem";
-import { getHandle } from "../../../../helpers/lemmy";
 import { buildBaseData } from "./shared";
-import { buildCommunityLink } from "../../../../helpers/appLinkBuilder";
 
 export default function removeCommunity(
   item: ModRemoveCommunityView,
 ): LogEntryData {
   return {
+    icon: item.mod_remove_community.removed ? trash : arrowUndoCircle,
     title: `${
       item.mod_remove_community.removed ? "Removed" : "Restored"
     } Community`,

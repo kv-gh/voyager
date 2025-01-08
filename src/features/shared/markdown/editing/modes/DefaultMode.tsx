@@ -5,49 +5,43 @@ import {
   useIonModal,
 } from "@ionic/react";
 import {
+  codeSlashOutline,
   ellipsisHorizontal,
+  eyeOutline,
   glassesOutline,
   happyOutline,
   image,
   link,
   peopleOutline,
   personOutline,
+  remove,
 } from "ionicons/icons";
+import { MouseEvent, RefObject } from "react";
+
 import {
-  Dispatch,
-  MouseEvent,
-  RefObject,
-  SetStateAction,
-  useEffect,
-  useRef,
-} from "react";
-import PreviewModal from "../PreviewModal";
-import { insert } from "../../../../../helpers/string";
-import textFaces from "./textFaces.txt?raw";
-import { bold, italic, quote } from "../../../../icons";
+  bold,
+  italic,
+  listOrdered,
+  listUnordered,
+  quote,
+  strikethrough,
+  subscript,
+  superscript,
+} from "#/features/icons";
+import { htmlToMarkdown } from "#/helpers/markdown";
+import { isValidUrl } from "#/helpers/url";
+
 import { TOOLBAR_TARGET_ID } from "../MarkdownToolbar";
-import { styled } from "@linaria/react";
-import { css } from "@linaria/core";
-import { isValidUrl } from "../../../../../helpers/url";
+import PreviewModal from "../PreviewModal";
+import useEditorHelpers from "../useEditorHelpers";
 import useUploadImage from "../useUploadImage";
+import textFaces from "./textFaces.txt?raw";
 
-const Button = styled.button`
-  padding: 0;
-  font-size: 1.5rem;
-
-  appearance: none;
-  background: none;
-  border: 0;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
+import styles from "./DefaultMode.module.css";
 
 export interface SharedModeProps {
   type: "comment" | "post";
   text: string;
-  setText: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement>;
 }
 
@@ -58,7 +52,6 @@ interface DefaultModeProps extends SharedModeProps {
 export default function DefaultMode({
   type,
   text,
-  setText,
   textareaRef,
   calculateMode,
 }: DefaultModeProps) {
@@ -74,23 +67,13 @@ export default function DefaultMode({
 
   const { uploadImage, jsx } = useUploadImage();
 
-  const selectionLocation = useRef(0);
-  const selectionLocationEnd = useRef(0);
-  const replySelectionRef = useRef("");
-
-  useEffect(() => {
-    const onChange = () => {
-      selectionLocation.current = textareaRef.current?.selectionStart ?? 0;
-      selectionLocationEnd.current = textareaRef.current?.selectionEnd ?? 0;
-      replySelectionRef.current = window.getSelection()?.toString() || "";
-    };
-
-    document.addEventListener("selectionchange", onChange);
-
-    return () => {
-      document.removeEventListener("selectionchange", onChange);
-    };
-  }, [textareaRef]);
+  const {
+    insertBlock,
+    insertInline,
+    selectionLocation,
+    selectionLocationEnd,
+    replySelectionRef,
+  } = useEditorHelpers(textareaRef);
 
   function presentMoreOptions(e: MouseEvent) {
     e.preventDefault();
@@ -101,7 +84,76 @@ export default function DefaultMode({
         {
           text: "Preview",
           icon: glassesOutline,
-          handler: presentPreview,
+          handler: () => {
+            presentPreview({
+              presentingElement: document.querySelector(
+                "ion-modal.show-modal",
+              ) as HTMLElement,
+              onDidDismiss: () => {
+                requestAnimationFrame(() => textareaRef.current?.focus());
+              },
+            });
+          },
+        },
+        {
+          text: "Horizontal Line",
+          icon: remove,
+          handler: () => {
+            insertBlock("---");
+          },
+        },
+        {
+          text: "Superscript",
+          icon: superscript,
+          handler: () => {
+            insertInline("^superscript^", 12, 11);
+          },
+        },
+        {
+          text: "Subscript",
+          icon: subscript,
+          handler: () => {
+            insertInline("~subscript~", 10, 9);
+          },
+        },
+        {
+          text: "Strikethrough",
+          icon: strikethrough,
+          handler: () => {
+            insertInline("~~strikethrough~~", 15, 13);
+          },
+        },
+        {
+          text: "Code",
+          icon: codeSlashOutline,
+          handler: () => {
+            insertBlock("```\ncode\n```", 8, 4);
+          },
+        },
+        {
+          text: "Spoiler",
+          icon: eyeOutline,
+          handler: () => {
+            insertBlock(
+              "::: spoiler Tap for spoiler\nhidden content\n:::",
+              18,
+              14,
+            );
+          },
+        },
+        {
+          text: "Unordered List",
+          icon: listUnordered,
+          handler: () => {
+            insertBlock("- ");
+          },
+        },
+        {
+          text: "Ordered List",
+          icon: listOrdered,
+          handler: () => {
+            insertBlock("1. ");
+          },
         },
         {
           text: "Mention user",
@@ -131,6 +183,8 @@ export default function DefaultMode({
   }
 
   function presentLinkInput() {
+    textareaRef.current?.focus(); // prevent keyboard flicker
+
     const selectedText = text.slice(
       selectionLocation.current,
       selectionLocationEnd.current,
@@ -162,13 +216,13 @@ export default function DefaultMode({
         },
       ],
       buttons: [
+        "Cancel",
         {
           text: "OK",
           handler: ({ text, url }) => {
             insertMarkdownLink(text, url);
           },
         },
-        "Cancel",
       ],
     });
 
@@ -185,16 +239,12 @@ export default function DefaultMode({
 
   function insertMarkdownLink(text: string = "", url?: string) {
     const markdownLink = `[${text}](${url || "url"})`;
-    const toRemove = selectionLocationEnd.current - selectionLocation.current;
 
     const locationBeforeInsert = selectionLocation.current;
     const currentSelectionLocation = locationBeforeInsert + markdownLink.length;
 
-    setText((text) =>
-      insert(text, locationBeforeInsert, markdownLink, toRemove),
-    );
-
     textareaRef.current?.focus();
+    document.execCommand("insertText", false, markdownLink);
 
     setTimeout(() => {
       if (!text) {
@@ -228,17 +278,10 @@ export default function DefaultMode({
 
     const toInsert = `${space}${prefix}`;
 
-    setText((text) => insert(text, index, toInsert));
-
     textareaRef.current?.focus();
+    document.execCommand("insertText", false, toInsert);
 
-    setTimeout(() => {
-      const location = index + toInsert.length;
-
-      textareaRef.current?.setSelectionRange(location, location);
-
-      calculateMode();
-    });
+    calculateMode();
   }
 
   function presentTextFaces() {
@@ -258,64 +301,32 @@ export default function DefaultMode({
       onWillDismiss: (event) => {
         if (!event.detail.data) return;
 
-        const currentSelectionLocation =
-          selectionLocation.current + event.detail.data.length;
-
-        setText((text) =>
-          insert(text, selectionLocation.current, event.detail.data),
-        );
-
-        if (textareaRef.current) {
-          textareaRef.current.focus();
-
-          setTimeout(() => {
-            textareaRef.current?.setSelectionRange(
-              currentSelectionLocation,
-              currentSelectionLocation,
-            );
-          });
-        }
+        textareaRef.current?.focus();
+        document.execCommand("insertText", false, event.detail.data);
       },
     });
   }
 
-  function onQuote(e: MouseEvent | TouchEvent) {
-    if (!replySelectionRef.current) return;
-    if (
-      !textareaRef.current ||
-      textareaRef.current?.selectionStart - textareaRef.current?.selectionEnd
-    )
-      return;
+  async function onQuote(e: MouseEvent | TouchEvent) {
+    if (!textareaRef.current) return;
+    const selection = replySelectionRef.current;
+    if (!selection) return;
 
     e.stopPropagation();
     e.preventDefault();
 
-    const currentSelectionLocation = selectionLocation.current;
+    let quotedText;
 
-    let insertedText = `> ${replySelectionRef.current
-      .trim()
-      .split("\n")
-      .join("\n> ")}\n\n`;
-
-    if (
-      text[currentSelectionLocation - 2] &&
-      text[currentSelectionLocation - 2] !== "\n"
-    ) {
-      insertedText = `\n${insertedText}`;
+    try {
+      quotedText = await htmlToMarkdown(selection.html);
+    } catch (error) {
+      quotedText = selection.text;
+      console.error("Parse error", error);
     }
 
-    setText((text) => insert(text, currentSelectionLocation, insertedText));
+    const insertedBlock = `> ${quotedText.trim().split("\n").join("\n> ")}`;
 
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-
-      setTimeout(() => {
-        if (!textareaRef.current) return;
-
-        textareaRef.current.selectionEnd =
-          currentSelectionLocation + insertedText.length;
-      }, 10);
-    }
+    insertBlock(insertedBlock);
 
     return false;
   }
@@ -325,51 +336,56 @@ export default function DefaultMode({
       {jsx}
 
       <markdown-toolbar for={TOOLBAR_TARGET_ID}>
-        <label htmlFor="photo-upload">
-          <Button as="div" onClick={() => textareaRef.current?.focus()}>
+        <label htmlFor="photo-upload-toolbar">
+          <div
+            // Needs to be div for label click propagation
+            role="button"
+            aria-label="Upload image"
+            className={styles.button}
+            onClick={() => {
+              textareaRef.current?.focus();
+              return true;
+            }}
+          >
             <IonIcon icon={image} color="primary" />
-          </Button>
+          </div>
 
           <input
-            className={css`
-              display: none;
-            `}
+            className="ion-hide"
             type="file"
             accept="image/*"
-            id="photo-upload"
+            id="photo-upload-toolbar"
             onInput={async (e) => {
               const image = (e.target as HTMLInputElement).files?.[0];
               if (!image) return;
 
               const markdown = await uploadImage(image);
 
-              setText((text) =>
-                insert(text, selectionLocation.current, markdown),
-              );
+              insertBlock(markdown);
             }}
           />
         </label>
-        <Button onClick={presentLinkInput}>
+        <button className={styles.button} onClick={presentLinkInput}>
           <IonIcon icon={link} color="primary" />
-        </Button>
+        </button>
         <md-bold>
-          <Button>
+          <button className={styles.button}>
             <IonIcon icon={bold} color="primary" />
-          </Button>
+          </button>
         </md-bold>
         <md-italic>
-          <Button>
+          <button className={styles.button}>
             <IonIcon icon={italic} color="primary" />
-          </Button>
+          </button>
         </md-italic>
         <md-quote>
-          <Button onClickCapture={onQuote}>
+          <button className={styles.button} onClickCapture={onQuote}>
             <IonIcon icon={quote} color="primary" />
-          </Button>
+          </button>
         </md-quote>
-        <Button onClick={presentMoreOptions}>
+        <button className={styles.button} onClick={presentMoreOptions}>
           <IonIcon icon={ellipsisHorizontal} color="primary" />
-        </Button>
+        </button>
       </markdown-toolbar>
     </>
   );

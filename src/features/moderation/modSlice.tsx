@@ -1,9 +1,11 @@
-import { PayloadAction, createSelector, createSlice } from "@reduxjs/toolkit";
-import { CommentReport, PostReport } from "lemmy-js-client";
-import { AppDispatch, RootState } from "../../store";
-import { clientSelector, jwtSelector } from "../auth/authSelectors";
-import { groupBy, pullAllBy } from "lodash";
+import { createSelector, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { isBefore, subSeconds } from "date-fns";
+import { groupBy } from "es-toolkit";
+import { CommentReport, PostReport } from "lemmy-js-client";
+
+import { clientSelector, jwtSelector } from "#/features/auth/authSelectors";
+import { AppDispatch, RootState } from "#/store";
+
 import { REPORT_SYNC_INTERVAL_IN_SECONDS } from "./BackgroundReportSync";
 
 interface PostState {
@@ -41,10 +43,14 @@ export const modSlice = createSlice({
       state.postReports = action.payload;
     },
     resolvedCommentReport: (state, action: PayloadAction<CommentReport>) => {
-      pullAllBy(state.commentReports, [action.payload], (r) => r.id);
+      state.commentReports = state.commentReports.filter(
+        (r) => r.id !== action.payload.id,
+      );
     },
     resolvedPostReport: (state, action: PayloadAction<PostReport>) => {
-      pullAllBy(state.postReports, [action.payload], (r) => r.id);
+      state.postReports = state.postReports.filter(
+        (r) => r.id !== action.payload.id,
+      );
     },
     resetMod: () => initialState,
   },
@@ -119,7 +125,6 @@ export const syncReports =
       let page = 1;
       const cumulatedReports: CommentReport[] = [];
 
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         let reports;
 
@@ -151,7 +156,6 @@ export const syncReports =
       let page = 1;
       const cumulatedReports: PostReport[] = [];
 
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         let reports;
 

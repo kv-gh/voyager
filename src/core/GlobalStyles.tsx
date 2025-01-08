@@ -1,24 +1,25 @@
-import { useAppSelector } from "../store";
+import { Keyboard, KeyboardStyle } from "@capacitor/keyboard";
+import { StatusBar, Style } from "@capacitor/status-bar";
 import React, {
   createContext,
   useContext,
   useEffect,
   useLayoutEffect,
 } from "react";
-import { StatusBar, Style } from "@capacitor/status-bar";
-import { isNative } from "../helpers/device";
-import { Keyboard, KeyboardStyle } from "@capacitor/keyboard";
+
+import { initialState as initialSettingsState } from "#/features/settings/settingsSlice";
+import { isNative } from "#/helpers/device";
 import useSystemDarkMode, {
   DARK_MEDIA_SELECTOR,
-} from "../helpers/useSystemDarkMode";
-import { css } from "@linaria/core";
+} from "#/helpers/useSystemDarkMode";
+import { AppThemeType } from "#/services/db";
+import { useAppSelector } from "#/store";
+
 import { getThemeByStyle } from "./theme/AppThemes";
 
-import "./theme/variables";
-import { AppThemeType } from "../services/db";
-import { stateWithLocalstorageItems as initialCriticalSettingsState } from "../features/settings/settingsSlice";
+import styles from "./GlobalStyles.module.css";
 
-export const DARK_CLASSNAME = "theme-dark";
+export const DARK_CLASSNAME = "ion-palette-dark";
 export const PURE_BLACK_CLASSNAME = "theme-pure-black";
 export const THEME_HAS_CUSTOM_BACKGROUND = "theme-has-custom-background";
 
@@ -67,22 +68,14 @@ function updateDocumentTheme(
 
 // Prevent flash of white content and repaint before react component setup
 updateDocumentTheme(
-  initialCriticalSettingsState.appearance.dark.usingSystemDarkMode
+  initialSettingsState.appearance.dark.usingSystemDarkMode
     ? window.matchMedia(DARK_MEDIA_SELECTOR).matches
-    : initialCriticalSettingsState.appearance.dark.userDarkMode,
-  initialCriticalSettingsState.appearance.dark.pureBlack,
-  initialCriticalSettingsState.appearance.theme,
+    : initialSettingsState.appearance.dark.userDarkMode,
+  initialSettingsState.appearance.dark.pureBlack,
+  initialSettingsState.appearance.theme,
 );
 
-const globalDeviceFontCss = css`
-  font: -apple-system-body;
-`;
-
-interface GlobalStylesProps {
-  children: React.ReactNode;
-}
-
-export default function GlobalStyles({ children }: GlobalStylesProps) {
+export default function GlobalStyles({ children }: React.PropsWithChildren) {
   const isDark = useComputeIsDark();
   const { fontSizeMultiplier, useSystemFontSize } = useAppSelector(
     (state) => state.settings.appearance.font,
@@ -101,10 +94,10 @@ export default function GlobalStyles({ children }: GlobalStylesProps) {
 
   useLayoutEffect(() => {
     if (useSystemFontSize) {
-      document.documentElement.classList.add(globalDeviceFontCss);
+      document.documentElement.classList.remove(styles.fixedDeviceFont!);
       document.documentElement.style.fontSize = "";
     } else {
-      document.documentElement.classList.remove(globalDeviceFontCss);
+      document.documentElement.classList.add(styles.fixedDeviceFont!);
       document.documentElement.style.fontSize = `${fontSizeMultiplier}rem`;
     }
   }, [useSystemFontSize, fontSizeMultiplier]);

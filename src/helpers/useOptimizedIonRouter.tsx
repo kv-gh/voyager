@@ -1,8 +1,7 @@
-import { UseIonRouterResult, useIonRouter } from "@ionic/react";
+import { useIonRouter, UseIonRouterResult } from "@ionic/react";
 import {
-  MutableRefObject,
-  ReactNode,
   createContext,
+  MutableRefObject,
   useContext,
   useEffect,
   useMemo,
@@ -39,7 +38,7 @@ export function useOptimizedIonRouter() {
   );
 }
 
-export function OptimizedRouterProvider({ children }: { children: ReactNode }) {
+export function OptimizedRouterProvider({ children }: React.PropsWithChildren) {
   const router = useIonRouter();
   const routerRef = useRef<UseIonRouterResult>();
 

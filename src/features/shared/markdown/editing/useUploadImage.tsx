@@ -1,28 +1,25 @@
-import { useState } from "react";
-import useAppToast from "../../../../helpers/useAppToast";
-import { useAppSelector } from "../../../../store";
-import { jwtSelector, urlSelector } from "../../../auth/authSelectors";
-import { uploadImage } from "../../../../services/lemmy";
 import { IonLoading } from "@ionic/react";
+import { useState } from "react";
+
+import useAppToast from "#/helpers/useAppToast";
+import { useAppDispatch } from "#/store";
+
+import { uploadImage } from "./uploadImageSlice";
 
 export default function useUploadImage() {
+  const dispatch = useAppDispatch();
   const presentToast = useAppToast();
-  const jwt = useAppSelector(jwtSelector);
-  const instanceUrl = useAppSelector(urlSelector);
-
   const [imageUploading, setImageUploading] = useState(false);
 
   return {
     jsx: <IonLoading isOpen={imageUploading} message="Uploading image..." />,
     uploadImage: async (image: File) => {
-      if (!jwt) throw new Error("jwt expected for image upload");
-
       setImageUploading(true);
 
       let imageUrl: string;
 
       try {
-        imageUrl = await uploadImage(instanceUrl, jwt, image);
+        imageUrl = await dispatch(uploadImage(image));
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unknown error";
@@ -38,7 +35,7 @@ export default function useUploadImage() {
         setImageUploading(false);
       }
 
-      return `\n![](${imageUrl})\n`;
+      return `![](${imageUrl})`;
     },
   };
 }

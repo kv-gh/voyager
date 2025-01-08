@@ -1,30 +1,12 @@
-import { styled } from "@linaria/react";
-import { useCallback, useEffect, useState } from "react";
-import { getHandle } from "../../../../../../helpers/lemmy";
+import { useDebouncedCallback } from "@mantine/hooks";
 import { Community } from "lemmy-js-client";
-import useDebounceFn from "../../../../../../helpers/useDebounceFn";
+import { useEffect, useState } from "react";
+
+import { getHandle } from "#/helpers/lemmy";
+
 import { SharedModeProps as GenericModeProps } from "../DefaultMode";
-import { insert } from "../../../../../../helpers/string";
 
-const Container = styled.div`
-  display: flex;
-  gap: 16px;
-  padding: 0 16px;
-  overflow: auto;
-  height: 100%;
-`;
-
-const Item = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  white-space: nowrap;
-`;
-
-const EmptyItem = styled(Item)`
-  color: var(--ion-color-medium);
-`;
+import styles from "./GenericAutocompleteMode.module.css";
 
 export interface AutocompleteModeProps extends GenericModeProps {
   match: string;
@@ -55,17 +37,11 @@ export default function GenericAutocompleteMode<
   buildMd,
   match,
   index,
-  text,
-  setText,
   textareaRef,
 }: GenericAutocompleteModeProps<I>) {
   const [items, setItems] = useState<I[]>([]);
 
-  const debouncedFetchItems = useDebounceFn(() => {
-    fetchItems();
-  }, 500);
-
-  const fetchItems = useCallback(async () => {
+  const debouncedFetchItems = useDebouncedCallback(async () => {
     if (!match) {
       setItems([]);
       return;
@@ -74,39 +50,38 @@ export default function GenericAutocompleteMode<
     const items = await fetchFn(match);
 
     setItems(items);
-  }, [match, fetchFn]);
+  }, 500);
 
   useEffect(() => {
     debouncedFetchItems();
-  }, [match, debouncedFetchItems]);
+  }, [debouncedFetchItems, fetchFn, match]);
 
   function select(item: I) {
     const md = `${buildMd(item)} `;
-    const newText = insert(text, index, md, match.length + 1);
 
-    setText(newText);
+    textareaRef.current?.focus();
 
-    setTimeout(() => {
-      if (!textareaRef.current) return;
-
-      textareaRef.current.focus();
-
-      const cursorPosition = index + md.length;
-      textareaRef.current.setSelectionRange(cursorPosition, cursorPosition);
-    });
+    textareaRef.current?.setSelectionRange(index, index + match.length + 1);
+    document.execCommand("insertText", false, md);
   }
 
   return (
-    <Container>
+    <div className={styles.container}>
       {items.length ? (
         items.map((item) => (
-          <Item key={item.id} onClick={() => select(item)}>
+          <div
+            className={styles.item}
+            key={item.id}
+            onClick={() => select(item)}
+          >
             {getHandle(item)}
-          </Item>
+          </div>
         ))
       ) : (
-        <EmptyItem>{match ? "No results" : "Type for suggestions"}</EmptyItem>
+        <div className={styles.emptyItem}>
+          {match ? "No results" : "Type for suggestions"}
+        </div>
       )}
-    </Container>
+    </div>
   );
 }

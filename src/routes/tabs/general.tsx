@@ -1,19 +1,22 @@
 /* eslint-disable react/jsx-key */
-
-import Route from "../common/Route";
-import SearchFeedResultsPage from "../pages/search/results/SearchFeedResultsPage";
-import CommunityPage from "../pages/shared/CommunityPage";
-import CommunitySidebarPage from "../pages/shared/CommunitySidebarPage";
-import PostDetail from "../pages/posts/PostPage";
-import CommunityCommentsPage from "../pages/shared/CommunityCommentsPage";
-import ModlogPage from "../pages/shared/ModlogPage";
-import ModqueuePage from "../pages/shared/ModqueuePage";
-import CommentsPage from "../pages/shared/CommentsPage";
-import UserPage from "../pages/profile/UserPage";
-import ProfileFeedItemsPage from "../pages/profile/ProfileFeedItemsPage";
-import ProfileFeedHiddenPostsPage from "../pages/profile/ProfileFeedHiddenPostsPage";
-import ConversationPage from "../pages/inbox/ConversationPage";
-import InstanceSidebarPage from "../pages/shared/InstanceSidebarPage";
+import Route from "#/routes/common/Route";
+import ConversationPage from "#/routes/pages/inbox/ConversationPage";
+import PostDetail from "#/routes/pages/posts/PostPage";
+import ProfileFeedCommentsPage from "#/routes/pages/profile/ProfileFeedCommentsPage";
+import ProfileFeedHiddenPostsPage from "#/routes/pages/profile/ProfileFeedHiddenPostsPage";
+import ProfileFeedPostsPage from "#/routes/pages/profile/ProfileFeedPostsPage";
+import ProfileFeedSavedPage from "#/routes/pages/profile/ProfileFeedSavedPage";
+import ProfileFeedVotedPage from "#/routes/pages/profile/ProfileFeedVotedPage";
+import UserPage from "#/routes/pages/profile/UserPage";
+import SearchFeedResultsPage from "#/routes/pages/search/results/SearchFeedResultsPage";
+import CommentsPage from "#/routes/pages/shared/CommentsPage";
+import CommunityCommentsPage from "#/routes/pages/shared/CommunityCommentsPage";
+import CommunityPage from "#/routes/pages/shared/CommunityPage";
+import CommunitySidebarPage from "#/routes/pages/shared/CommunitySidebarPage";
+import InstanceSidebarPage from "#/routes/pages/shared/InstanceSidebarPage";
+import ModlogPage from "#/routes/pages/shared/ModlogPage";
+import ModqueuePage from "#/routes/pages/shared/ModqueuePage";
+import SpecialFeedPage from "#/routes/pages/shared/SpecialFeedPage";
 
 export default [
   <Route exact path="/:tab/:actor/c/:community">
@@ -49,6 +52,18 @@ export default [
   <Route exact path="/:tab/:actor/c/:community/modqueue">
     <ModqueuePage />
   </Route>,
+  <Route exact path="/:tab/:actor/home">
+    <SpecialFeedPage type="Subscribed" />
+  </Route>,
+  <Route exact path="/:tab/:actor/all">
+    <SpecialFeedPage type="All" />
+  </Route>,
+  <Route exact path="/:tab/:actor/local">
+    <SpecialFeedPage type="Local" />
+  </Route>,
+  <Route exact path="/:tab/:actor/mod">
+    <SpecialFeedPage type="ModeratorView" />
+  </Route>,
   <Route exact path="/:tab/:actor/mod/comments">
     <CommentsPage type="ModeratorView" />
   </Route>,
@@ -62,22 +77,22 @@ export default [
     <UserPage />
   </Route>,
   <Route exact path="/:tab/:actor/u/:handle/posts">
-    <ProfileFeedItemsPage type="Posts" />
+    <ProfileFeedPostsPage />
   </Route>,
   <Route exact path="/:tab/:actor/u/:handle/comments">
-    <ProfileFeedItemsPage type="Comments" />
+    <ProfileFeedCommentsPage />
   </Route>,
   <Route exact path="/:tab/:actor/u/:handle/saved">
-    <ProfileFeedItemsPage type="Saved" />
+    <ProfileFeedSavedPage />
   </Route>,
   <Route exact path="/:tab/:actor/u/:handle/hidden">
     <ProfileFeedHiddenPostsPage />
   </Route>,
   <Route exact path="/:tab/:actor/u/:handle/upvoted">
-    <ProfileFeedItemsPage type="Upvoted" />
+    <ProfileFeedVotedPage type="Upvoted" />
   </Route>,
   <Route exact path="/:tab/:actor/u/:handle/downvoted">
-    <ProfileFeedItemsPage type="Downvoted" />
+    <ProfileFeedVotedPage type="Downvoted" />
   </Route>,
   <Route exact path="/:tab/:actor/u/:handle/message">
     <ConversationPage />

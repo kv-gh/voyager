@@ -1,20 +1,26 @@
+import { IonModal, useIonActionSheet } from "@ionic/react";
+import { noop } from "es-toolkit";
 import React, {
   createContext,
-  useCallback,
   useContext,
   useEffect,
-  useMemo,
+  useRef,
   useState,
 } from "react";
-import { IonModal, useIonActionSheet } from "@ionic/react";
-import { PageContext } from "../auth/PageContext";
 import { Prompt, useLocation } from "react-router";
+
+import { instanceSelector } from "#/features/auth/authSelectors";
+import { PageContext } from "#/features/auth/PageContext";
+import { isNative } from "#/helpers/device";
+import useStateRef from "#/helpers/useStateRef";
+import { clearRecoveredText } from "#/helpers/useTextRecovery";
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import IonModalAutosizedForOnScreenKeyboard from "./IonModalAutosizedForOnScreenKeyboard";
-import { useAppSelector } from "../../store";
-import { instanceSelector } from "../auth/authSelectors";
-import { clearRecoveredText } from "../../helpers/useTextRecovery";
-import useStateRef from "../../helpers/useStateRef";
-import { isNative } from "../../helpers/device";
+import {
+  deletePendingImageUploads,
+  onHandledPendingImages,
+} from "./markdown/editing/uploadImageSlice";
 
 export interface DismissableProps {
   dismiss: () => void;
@@ -31,6 +37,7 @@ interface DynamicDismissableModalProps {
 
   className?: string;
   dismissClassName?: string;
+  textRecovery?: true;
 }
 
 export function DynamicDismissableModal({
@@ -39,14 +46,18 @@ export function DynamicDismissableModal({
   children: renderModalContents,
   className,
   dismissClassName,
+  textRecovery,
 }: DynamicDismissableModalProps) {
+  const dispatch = useAppDispatch();
   const pageContext = useContext(PageContext);
   const location = useLocation();
   const selectedInstance = useAppSelector(
     instanceSelector ?? ((state) => state.auth.connectedInstance),
   );
 
-  const [canDismissRef, setCanDismiss] = useStateRef(true);
+  // TODO: underscore as hack to avoid compiler complaint.
+  // See: https://github.com/reactwg/react-compiler/discussions/32
+  const [canDismissRef_, canDismiss, setCanDismiss] = useStateRef(true);
 
   const [presentActionSheet] = useIonActionSheet();
 
@@ -54,15 +65,22 @@ export function DynamicDismissableModal({
     HTMLElement | undefined
   >();
 
+  const isOpenRef = useRef(isOpen);
+
   useEffect(() => {
-    setPresentingElement(pageContext.pageRef?.current ?? undefined);
+    isOpenRef.current = isOpen;
+  });
+
+  useEffect(() => {
+    setPresentingElement(
+      pageContext.pageRef?.current?.closest("ion-tabs") ?? undefined,
+    );
 
     // In <TabbedRoutes>, <IonRouterOutlet> rebuilds (see `key`) when iss changes,
     // so grab new IonRouterOutlet
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageContext.pageRef, selectedInstance]);
 
-  const onDismissAttemptCb = useCallback(async () => {
+  const onDismissAttemptCb = async () => {
     if (document.activeElement instanceof HTMLElement)
       document.activeElement.blur();
 
@@ -73,9 +91,10 @@ export function DynamicDismissableModal({
           text: "Discard",
           role: "destructive",
           handler: () => {
-            clearRecoveredText();
             setCanDismiss(true);
             setIsOpen(false);
+
+            dispatch(deletePendingImageUploads());
           },
         },
         {
@@ -86,11 +105,11 @@ export function DynamicDismissableModal({
     });
 
     return false;
-  }, [presentActionSheet, setCanDismiss, setIsOpen, dismissClassName]);
+  };
 
   // Close tab
   useUnload((e) => {
-    if (canDismissRef.current) return;
+    if (canDismissRef_.current) return;
 
     e.preventDefault();
 
@@ -99,37 +118,28 @@ export function DynamicDismissableModal({
 
   // HTML5 route change, and Prompt already caught and user acknowledged
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpenRef.current) return;
 
     setCanDismiss(true);
     setIsOpen(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
+  }, [location.pathname, setCanDismiss, setIsOpen]);
 
-  const dismiss = useCallback(() => {
-    if (canDismissRef.current) {
+  const dismiss = () => {
+    if (canDismissRef_.current) {
       setIsOpen(false);
       return;
     }
 
     onDismissAttemptCb();
-  }, [canDismissRef, onDismissAttemptCb, setIsOpen]);
+  };
 
-  const context = useMemo(
-    () => ({ dismiss, setCanDismiss }),
-    [dismiss, setCanDismiss],
-  );
-
-  const content = useMemo(
-    () =>
-      typeof renderModalContents === "function"
-        ? renderModalContents({
-            setCanDismiss,
-            dismiss,
-          })
-        : renderModalContents,
-    [dismiss, renderModalContents, setCanDismiss],
-  );
+  const content =
+    typeof renderModalContents === "function"
+      ? renderModalContents({
+          setCanDismiss,
+          dismiss,
+        })
+      : renderModalContents;
 
   const Modal = isNative() ? IonModal : IonModalAutosizedForOnScreenKeyboard;
 
@@ -140,7 +150,7 @@ export function DynamicDismissableModal({
           // https://github.com/remix-run/react-router/issues/5405#issuecomment-673811334
           when={true}
           message={() => {
-            if (canDismissRef.current) return true;
+            if (canDismissRef_.current) return true;
 
             return "Are you sure you want to discard your work?";
           }}
@@ -149,10 +159,15 @@ export function DynamicDismissableModal({
       <Modal
         className={className}
         isOpen={isOpen}
-        canDismiss={
-          canDismissRef.current ? canDismissRef.current : onDismissAttemptCb
-        }
-        onDidDismiss={() => setIsOpen(false)}
+        canDismiss={canDismiss ? canDismiss : onDismissAttemptCb}
+        onDidDismiss={() => {
+          setIsOpen(false);
+
+          // in case onDidDismiss incorrectly called by Ionic, don't clear data
+          if (textRecovery && canDismissRef_.current) clearRecoveredText();
+
+          if (canDismissRef_.current) dispatch(onHandledPendingImages());
+        }}
         presentingElement={presentingElement}
         onWillDismiss={() => {
           if (document.activeElement instanceof HTMLElement) {
@@ -160,7 +175,9 @@ export function DynamicDismissableModal({
           }
         }}
       >
-        <DynamicDismissableModalContext.Provider value={context}>
+        <DynamicDismissableModalContext.Provider
+          value={{ dismiss, setCanDismiss }}
+        >
           {content}
         </DynamicDismissableModalContext.Provider>
       </Modal>
@@ -183,4 +200,4 @@ const useUnload = (fn: (e: BeforeUnloadEvent) => void) => {
 export const DynamicDismissableModalContext = createContext<{
   dismiss: () => void;
   setCanDismiss: (canDismiss: boolean) => void;
-}>({ dismiss: () => {}, setCanDismiss: () => {} });
+}>({ dismiss: noop, setCanDismiss: noop });

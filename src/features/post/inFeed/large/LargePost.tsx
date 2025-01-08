@@ -1,83 +1,40 @@
-import { megaphone } from "ionicons/icons";
-import PreviewStats from "../PreviewStats";
-import { maxWidthCss } from "../../../shared/AppContent";
-import Nsfw, { isNsfw } from "../../../labels/Nsfw";
-import { VoteButton } from "../../shared/VoteButton";
-import MoreActions from "../../shared/MoreActions";
-import PersonLink from "../../../labels/links/PersonLink";
-import InlineMarkdown from "../../../shared/markdown/InlineMarkdown";
-import { AnnouncementIcon } from "../../../../routes/pages/posts/PostPage";
-import CommunityLink from "../../../labels/links/CommunityLink";
-import { PostProps } from "../Post";
-import Save from "../../../labels/Save";
-import { useAppSelector } from "../../../../store";
+import { useContext } from "react";
+
+import { PageTypeContext } from "#/features/feed/PageTypeContext";
+import CommunityLink from "#/features/labels/links/CommunityLink";
+import PersonLink from "#/features/labels/links/PersonLink";
+import Nsfw, { isNsfw } from "#/features/labels/Nsfw";
+import Save from "#/features/labels/Save";
 import ModeratableItem, {
   ModeratableItemBannerOutlet,
-} from "../../../moderation/ModeratableItem";
-import MoreModActions from "../../shared/MoreModAction";
-import ModqueueItemActions from "../../../moderation/ModqueueItemActions";
-import Crosspost from "../../crosspost/Crosspost";
+} from "#/features/moderation/ModeratableItem";
+import ModqueueItemActions from "#/features/moderation/ModqueueItemActions";
+import Crosspost from "#/features/post/crosspost/Crosspost";
+import AnnouncementIcon from "#/features/post/detail/AnnouncementIcon";
+import MoreActions from "#/features/post/shared/MoreActions";
+import MoreModActions from "#/features/post/shared/MoreModAction";
+import useCrosspostUrl from "#/features/post/shared/useCrosspostUrl";
+import { VoteButton } from "#/features/post/shared/VoteButton";
+import InlineMarkdown from "#/features/shared/markdown/InlineMarkdown";
+import { cx } from "#/helpers/css";
+import { useInModqueue } from "#/routes/pages/shared/ModqueuePage";
+import { useAppSelector } from "#/store";
+
+import { PostProps } from "../Post";
+import PreviewStats from "../PreviewStats";
 import LargePostContents from "./LargePostContents";
-import useCrosspostUrl from "../../shared/useCrosspostUrl";
-import { useInModqueue } from "../../../../routes/pages/shared/ModqueuePage";
-import { useContext } from "react";
-import { PageTypeContext } from "../../../feed/PageTypeContext";
-import { styled } from "@linaria/react";
 
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  gap: 12px;
-  padding: 12px;
-
-  position: relative;
-
-  ${maxWidthCss}
-`;
-
-const Title = styled.div<{ isRead: boolean }>`
-  color: ${({ isRead }) => (isRead ? "var(--read-color)" : "inherit")};
-`;
-
-const Details = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  font-size: 0.8em;
-  color: var(--ion-color-text-aside);
-`;
-
-const LeftDetails = styled.div<{ isRead: boolean }>`
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-
-  min-width: 0;
-
-  color: ${({ isRead }) => (isRead ? "var(--read-color-medium)" : "inherit")};
-`;
-
-const RightDetails = styled.div`
-  display: flex;
-  align-items: center;
-  font-size: 1.5rem;
-
-  > * {
-    padding: 0.5rem !important;
-  }
-`;
-
-const CommunityName = styled.span`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
+import styles from "./LargePost.module.css";
 
 export default function LargePost({ post }: PostProps) {
   const showVotingButtons = useAppSelector(
     (state) => state.settings.appearance.large.showVotingButtons,
+  );
+  const alwaysShowAuthor = useAppSelector(
+    (state) => state.settings.appearance.posts.alwaysShowAuthor,
+  );
+  const showCommunityAtTop = useAppSelector(
+    (state) => state.settings.appearance.posts.communityAtTop,
   );
   const hasBeenRead =
     useAppSelector((state) => state.post.postReadById[post.post.id]) ||
@@ -99,56 +56,91 @@ export default function LargePost({ post }: PostProps) {
 
   return (
     <ModeratableItem itemView={post}>
-      <Container>
+      <div className={cx(styles.container, hasBeenRead && styles.read)}>
         <ModeratableItemBannerOutlet />
 
-        <Title isRead={hasBeenRead}>
-          <InlineMarkdown>{post.post.name}</InlineMarkdown>{" "}
-          {isNsfw(post) && <Nsfw />}
-        </Title>
+        <div className={styles.header}>
+          {showCommunityAtTop && !inCommunityFeed && (
+            <div className={styles.details}>
+              <div className={styles.leftDetails}>
+                <CommunityLink
+                  community={post.community}
+                  subscribed={post.subscribed}
+                  showInstanceWhenRemote
+                  tinyIcon
+                />
+              </div>
+            </div>
+          )}
+
+          <div className={styles.title}>
+            <InlineMarkdown>{post.post.name}</InlineMarkdown>{" "}
+            {isNsfw(post) && <Nsfw />}
+          </div>
+        </div>
 
         {renderPostBody()}
 
-        <Details>
-          <LeftDetails isRead={hasBeenRead}>
-            <CommunityName>
+        <div className={styles.details}>
+          <div className={styles.leftDetails}>
+            <span className={styles.communityName}>
               {post.post.featured_community || post.post.featured_local ? (
-                <AnnouncementIcon icon={megaphone} />
+                <AnnouncementIcon />
               ) : undefined}
               {inCommunityFeed ? (
                 <PersonLink
                   person={post.creator}
                   showInstanceWhenRemote
                   prefix="by"
+                  disableInstanceClick
+                  sourceUrl={post.post.ap_id}
                 />
               ) : (
-                <CommunityLink
-                  community={post.community}
-                  showInstanceWhenRemote
-                  subscribed={post.subscribed}
-                />
+                <>
+                  {!showCommunityAtTop && (
+                    <CommunityLink
+                      community={post.community}
+                      subscribed={post.subscribed}
+                      disableInstanceClick
+                      showInstanceWhenRemote={
+                        !showVotingButtons || !alwaysShowAuthor
+                      }
+                    />
+                  )}
+                  {alwaysShowAuthor && (
+                    <>
+                      {" "}
+                      <PersonLink
+                        person={post.creator}
+                        prefix="by"
+                        disableInstanceClick
+                        sourceUrl={post.post.ap_id}
+                      />
+                    </>
+                  )}
+                </>
               )}
-            </CommunityName>
+            </span>
 
             <PreviewStats post={post} />
-          </LeftDetails>
+          </div>
           {(showVotingButtons || inModqueue) && (
-            <RightDetails>
-              {inModqueue && <ModqueueItemActions item={post} />}
+            <div className={styles.rightDetails}>
+              {inModqueue && <ModqueueItemActions itemView={post} />}
               <MoreActions post={post} />
               {!inModqueue && (
                 <>
                   <MoreModActions post={post} />
-                  <VoteButton type="up" postId={post.post.id} />
-                  <VoteButton type="down" postId={post.post.id} />
+                  <VoteButton type="up" post={post} />
+                  <VoteButton type="down" post={post} />
                 </>
               )}
-            </RightDetails>
+            </div>
           )}
-        </Details>
+        </div>
 
         <Save type="post" id={post.post.id} />
-      </Container>
+      </div>
     </ModeratableItem>
   );
 }

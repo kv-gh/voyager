@@ -1,10 +1,8 @@
-import { IonLabel, IonList, IonToggle } from "@ionic/react";
-import {
-  HelperText,
-  InsetIonItem,
-  ListHeader,
-} from "../../../shared/formatting";
-import { useAppDispatch, useAppSelector } from "../../../../../store";
+import { IonItem, IonLabel, IonList, IonToggle } from "@ionic/react";
+
+import { HelperText, ListHeader } from "#/features/settings/shared/formatting";
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { setQuickSwitchDarkMode } from "../../../settingsSlice";
 
 export default function QuickSwitchDarkMode() {
@@ -19,7 +17,7 @@ export default function QuickSwitchDarkMode() {
         <IonLabel>Quick Switch</IonLabel>
       </ListHeader>
       <IonList inset>
-        <InsetIonItem>
+        <IonItem>
           <IonToggle
             checked={quickSwitch}
             onIonChange={(e) =>
@@ -28,7 +26,7 @@ export default function QuickSwitchDarkMode() {
           >
             Enable Quick Switch
           </IonToggle>
-        </InsetIonItem>
+        </IonItem>
       </IonList>
       <HelperText>
         If enabled, you can long-press the app header to toggle dark mode.

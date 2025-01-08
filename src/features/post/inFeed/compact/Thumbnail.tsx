@@ -2,22 +2,25 @@ import { IonIcon } from "@ionic/react";
 import { link, linkOutline } from "ionicons/icons";
 import { PostView } from "lemmy-js-client";
 import { MouseEvent, useCallback, useMemo } from "react";
-import { findLoneImage } from "../../../../helpers/markdown";
-import { useAppDispatch, useAppSelector } from "../../../../store";
-import PostMedia from "../../../media/gallery/PostMedia";
-import { isNsfwBlurred } from "../../../labels/Nsfw";
-import SelfSvg from "./self.svg?react";
-import { getImageSrc } from "../../../../services/lemmy";
-import InAppExternalLink from "../../../shared/InAppExternalLink";
+
+import { useAutohidePostIfNeeded } from "#/features/feed/PageTypeContext";
+import { isNsfwBlurred } from "#/features/labels/Nsfw";
+import InAppExternalLink from "#/features/shared/InAppExternalLink";
+import { cx } from "#/helpers/css";
+import { findLoneImage } from "#/helpers/markdown";
+import { isUrlImage } from "#/helpers/url";
 import {
   CompactThumbnailSizeType,
   OCompactThumbnailSizeType,
-} from "../../../../services/db";
-import { isUrlImage } from "../../../../helpers/url";
-import { useAutohidePostIfNeeded } from "../../../feed/PageTypeContext";
+} from "#/services/db";
+import { getImageSrc } from "#/services/lemmy";
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { setPostRead } from "../../postSlice";
-import { css, cx } from "@linaria/core";
-import { styled } from "@linaria/react";
+import CompactFeedPostMedia from "./CompactFeedPostMedia";
+import SelfSvg from "./self.svg?react";
+
+import styles from "./Thumbnail.module.css";
 
 function getWidthForSize(size: CompactThumbnailSizeType): number {
   switch (size) {
@@ -32,59 +35,6 @@ function getWidthForSize(size: CompactThumbnailSizeType): number {
   }
 }
 
-const sharedContainerCss = css`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  flex: 0 0 auto;
-
-  aspect-ratio: 1;
-  background: var(--ion-color-light);
-  border-radius: 8px;
-
-  position: relative;
-
-  overflow: hidden;
-  color: inherit;
-
-  svg {
-    width: 60%;
-    opacity: 0.5;
-  }
-`;
-
-const LinkIcon = styled(IonIcon)`
-  position: absolute;
-  bottom: 3px;
-  right: 3px;
-  padding: 2px;
-  font-size: 14px;
-  color: #444;
-
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 50%;
-  opacity: 0.9;
-`;
-
-const FullsizeIcon = styled(IonIcon)`
-  font-size: 2.5em;
-  opacity: 0.3;
-`;
-
-const imgCss = css`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-`;
-
-const blurImgCss = css`
-  filter: blur(6px);
-
-  // https://graffino.com/til/CjT2jrcLHP-how-to-fix-filter-blur-performance-issue-in-safari
-  transform: translate3d(0, 0, 0);
-`;
-
 interface ImgProps {
   post: PostView;
 }
@@ -98,10 +48,11 @@ export default function Thumbnail({ post }: ImgProps) {
   );
 
   const postImageSrc = useMemo(() => {
-    if (post.post.url && isUrlImage(post.post.url)) return post.post.url;
+    if (post.post.url && isUrlImage(post.post.url, post.post.url_content_type))
+      return post.post.url;
 
     if (markdownLoneImage) return markdownLoneImage.url;
-  }, [markdownLoneImage, post.post.url]);
+  }, [markdownLoneImage, post.post]);
 
   const blurNsfw = useAppSelector(
     (state) => state.settings.appearance.posts.blurNsfw,
@@ -126,28 +77,26 @@ export default function Thumbnail({ post }: ImgProps) {
 
   const renderContents = useCallback(() => {
     if (isLink) {
-      return (
-        <>
-          {post.post.thumbnail_url ? (
-            <>
-              <img
-                src={getImageSrc(post.post.thumbnail_url, { size: 100 })}
-                className={cx(imgCss, nsfw && blurImgCss)}
-              />
-              <LinkIcon icon={linkOutline} />
-            </>
-          ) : isLink ? (
-            <FullsizeIcon icon={link} />
-          ) : (
-            <SelfSvg />
-          )}
-        </>
-      );
+      if (post.post.thumbnail_url)
+        return (
+          <>
+            <img
+              src={getImageSrc(post.post.thumbnail_url, { size: 100 })}
+              className={cx(styles.img, nsfw && styles.blurImg)}
+            />
+            <IonIcon className={styles.linkIcon} icon={linkOutline} />
+          </>
+        );
+
+      return <IonIcon className={styles.fullsizeIcon} icon={link} />;
     }
 
     if (postImageSrc) {
       return (
-        <PostMedia post={post} className={cx(imgCss, nsfw && blurImgCss)} />
+        <CompactFeedPostMedia
+          post={post}
+          className={cx(styles.img, nsfw && styles.blurImg)}
+        />
       );
     }
 
@@ -169,7 +118,7 @@ export default function Thumbnail({ post }: ImgProps) {
         target="_blank"
         rel="noopener noreferrer"
         onClick={handleLinkClick}
-        className={sharedContainerCss}
+        className={styles.container}
         style={style}
       >
         {contents}
@@ -177,7 +126,7 @@ export default function Thumbnail({ post }: ImgProps) {
     );
 
   return (
-    <div className={sharedContainerCss} style={style}>
+    <div className={styles.container} style={style}>
       {contents}
     </div>
   );

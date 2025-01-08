@@ -1,37 +1,44 @@
 import { Comment, CommentView, Post, PostView } from "lemmy-js-client";
-import { useAppSelector } from "../../../store";
+
+import { cx } from "#/helpers/css";
+import { useAppSelector } from "#/store";
+
 import {
   reportsByCommentIdSelector,
   reportsByPostIdSelector,
 } from "../modSlice";
 import RemovedBanner from "./RemovedBanner";
 import ReportBanner from "./ReportBanner";
-import { maxWidthCss } from "../../shared/AppContent";
-import { styled } from "@linaria/react";
 
-export const Banner = styled.div<{
-  modState: ItemModState.Flagged | ItemModState.RemovedByMod;
-}>`
-  ${maxWidthCss}
+import styles from "./ModeratableItemBanner.module.css";
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+export const ItemModState = {
+  None: 0,
+  Flagged: 1,
+  RemovedByMod: 2,
+} as const;
 
-  font-size: 0.875rem;
+export type ItemModStateType = (typeof ItemModState)[keyof typeof ItemModState];
 
-  padding: 6px 0;
-  border-radius: 6px;
+interface BannerProps extends React.HTMLAttributes<HTMLDivElement> {
+  modState: typeof ItemModState.Flagged | typeof ItemModState.RemovedByMod;
+}
 
-  text-align: center;
-
-  background: ${({ modState }) => getModStateBannerBgColor(modState)!};
-  color: ${({ modState }) => getModStateBannerColor(modState)!};
-`;
+export function Banner({ modState, ...props }: BannerProps) {
+  return (
+    <div
+      {...props}
+      className={cx(styles.sharedBanner, props.className)}
+      style={{
+        background: getModStateBannerBgColor(modState),
+        color: getModStateBannerColor(modState),
+      }}
+    />
+  );
+}
 
 interface RemovedByBannerProps {
-  modState: ItemModState;
+  modState: ItemModStateType;
   itemView: CommentView | PostView;
 }
 
@@ -49,13 +56,7 @@ export default function ModeratableItemBanner({
   }
 }
 
-export enum ItemModState {
-  None,
-  Flagged,
-  RemovedByMod,
-}
-
-export function useItemModState(item: Comment | Post): ItemModState {
+export function useItemModState(item: Comment | Post): ItemModStateType {
   const hasPostReports = useAppSelector(
     (state) => !!reportsByPostIdSelector(state)[item.id]?.length,
   );
@@ -75,7 +76,7 @@ export function useItemModState(item: Comment | Post): ItemModState {
 }
 
 export function getModStateBackgroundColor(
-  modState: ItemModState,
+  modState: ItemModStateType,
 ): string | undefined {
   switch (modState) {
     case ItemModState.Flagged:
@@ -88,7 +89,7 @@ export function getModStateBackgroundColor(
 }
 
 export function getModStateBannerBgColor(
-  modState: ItemModState,
+  modState: ItemModStateType,
 ): string | undefined {
   switch (modState) {
     case ItemModState.Flagged:
@@ -101,7 +102,7 @@ export function getModStateBannerBgColor(
 }
 
 export function getModStateBannerColor(
-  modState: ItemModState,
+  modState: ItemModStateType,
 ): string | undefined {
   switch (modState) {
     case ItemModState.Flagged:

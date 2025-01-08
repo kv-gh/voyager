@@ -1,43 +1,31 @@
-import { PayloadAction, createSlice } from "@reduxjs/toolkit";
-import { AppDispatch, RootState } from "../../store";
-import Cookies from "js-cookie";
-import { getRemoteHandle, parseJWT } from "../../helpers/lemmy";
-import { resetPosts } from "../post/postSlice";
-import { getClient } from "../../services/lemmy";
-import { resetComments } from "../comment/commentSlice";
-import { resetUsers } from "../user/userSlice";
-import { resetInbox } from "../inbox/inboxSlice";
-import { differenceWith, uniqBy } from "lodash";
-import { resetCommunities } from "../community/communitySlice";
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { ApplicationContext } from "capacitor-application-context";
-import { resetInstances } from "../instances/instancesSlice";
-import { resetResolve } from "../resolve/resolveSlice";
-import { resetMod } from "../moderation/modSlice";
+import { uniqBy } from "es-toolkit";
+import { Register } from "lemmy-js-client";
+
+import { resetComments } from "#/features/comment/commentSlice";
+import { resetCommunities } from "#/features/community/communitySlice";
+import { resetInbox } from "#/features/inbox/inboxSlice";
+import { resetInstances } from "#/features/instances/instancesSlice";
+import { resetMod } from "#/features/moderation/modSlice";
+import { resetPosts } from "#/features/post/postSlice";
+import { resetResolve } from "#/features/resolve/resolveSlice";
+import { setDefaultFeed } from "#/features/settings/settingsSlice";
+import { resetUsers } from "#/features/user/userSlice";
+import { getRemoteHandle, parseLemmyJWT } from "#/helpers/lemmy";
+import { getDefaultServer } from "#/services/app";
+import { getClient } from "#/services/lemmy";
+import { AppDispatch, RootState } from "#/store";
+
 import { getInstanceFromHandle, instanceSelector } from "./authSelectors";
 import { receivedSite, resetSite } from "./siteSlice";
-import { Register } from "lemmy-js-client";
-import { setDefaultFeed } from "../settings/settingsSlice";
 
 const MULTI_ACCOUNT_STORAGE_NAME = "credentials";
 
-// Migrations
-(() => {
-  // 2023-06-25 clean up cookie used for old versions
-  Cookies.remove("jwt");
-
-  // 2023-06-26 prefer localStorage to avoid sending to proxy server
-  const cookie = Cookies.get(MULTI_ACCOUNT_STORAGE_NAME);
-
-  if (cookie && !localStorage.getItem(MULTI_ACCOUNT_STORAGE_NAME)) {
-    localStorage.setItem(MULTI_ACCOUNT_STORAGE_NAME, cookie);
-    Cookies.remove(MULTI_ACCOUNT_STORAGE_NAME);
-  }
-})();
-
 /**
- * DO NOT CHANGE this type. It is persisted in the login cookie
+ * DO NOT CHANGE this type. It is persisted.
  */
-export type Credential = {
+export interface Credential {
   jwt?: string;
 
   /**
@@ -46,12 +34,12 @@ export type Credential = {
    * e.g. `aeharding@lemmy.world` or `lemmy.world`
    */
   handle: string;
-};
+}
 
 /**
- * DO NOT CHANGE this type. It is persisted in localStorage
+ * DO NOT CHANGE this type. It is persisted.
  */
-type CredentialStoragePayload = {
+interface CredentialStoragePayload {
   accounts: Credential[];
 
   /**
@@ -60,7 +48,7 @@ type CredentialStoragePayload = {
    * e.g. `aeharding@lemmy.world` or `lemmy.world`
    */
   activeHandle: string;
-};
+}
 
 interface AuthState {
   accountData: CredentialStoragePayload | undefined;
@@ -94,10 +82,8 @@ export const authSlice = createSlice({
         cleanedPreviousAccounts = [action.payload];
       } else {
         // Remove guest accounts for this instance when logging in
-        cleanedPreviousAccounts = differenceWith(
-          state.accountData.accounts,
-          [getInstanceFromHandle(action.payload.handle)],
-          (a, b) => a.handle === b,
+        cleanedPreviousAccounts = state.accountData.accounts.filter(
+          (a) => a.handle !== getInstanceFromHandle(action.payload.handle),
         );
       }
 
@@ -116,10 +102,8 @@ export const authSlice = createSlice({
     removeAccount: (state, action: PayloadAction<string>) => {
       if (!state.accountData) return;
 
-      const accounts = differenceWith(
-        state.accountData.accounts,
-        [action.payload],
-        (a, b) => a.handle === b,
+      const accounts = state.accountData.accounts.filter(
+        (a) => a.handle !== action.payload,
       );
 
       const nextAccount = accounts[0];
@@ -151,13 +135,15 @@ export const authSlice = createSlice({
 
       updateCredentialsStorage(state.accountData);
     },
-
+    updateConnectedInstance(state, action: PayloadAction<string>) {
+      if (import.meta.env.VITE__TEST_MODE) {
+        state.connectedInstance = getDefaultServer();
+        return;
+      }
+      state.connectedInstance = action.payload;
+    },
     reset: (state) => {
       return initialState(state.connectedInstance);
-    },
-
-    updateConnectedInstance(state, action: PayloadAction<string>) {
-      state.connectedInstance = action.payload;
     },
   },
 });
@@ -168,8 +154,8 @@ export const {
   removeAccount,
   setPrimaryAccount,
   setAccounts,
-  reset,
   updateConnectedInstance,
+  reset,
 } = authSlice.actions;
 
 export default authSlice.reducer;
@@ -233,7 +219,7 @@ const addJwt =
     dispatch(resetAccountSpecificStoreData());
     dispatch(receivedSite(site));
     dispatch(addAccount({ jwt, handle: getRemoteHandle(myUser) }));
-    dispatch(updateConnectedInstance(parseJWT(jwt).iss));
+    dispatch(updateConnectedInstance(parseLemmyJWT(jwt).iss));
   };
 
 const resetAccountSpecificStoreData = () => (dispatch: AppDispatch) => {
@@ -277,7 +263,10 @@ export const logoutAccount =
 
     // revoke token
     if (currentAccount && currentAccount.jwt)
-      getClient(parseJWT(currentAccount.jwt).iss, currentAccount.jwt)?.logout();
+      getClient(
+        parseLemmyJWT(currentAccount.jwt).iss,
+        currentAccount.jwt,
+      )?.logout();
 
     dispatch(removeAccount(handle));
 
@@ -315,7 +304,7 @@ updateApplicationContextIfNeeded(getCredentialsFromStorage());
 function updateApplicationContextIfNeeded(
   accounts: CredentialStoragePayload | undefined,
 ) {
-  const DEFAULT_INSTANCE = "lemmy.world";
+  const DEFAULT_INSTANCE = "lemm.ee";
 
   const connectedInstance = (() => {
     if (!accounts) return DEFAULT_INSTANCE;
@@ -329,8 +318,8 @@ function updateApplicationContextIfNeeded(
   ApplicationContext.updateApplicationContext({
     connectedInstance,
     authToken: accounts
-      ? accounts.accounts.find((a) => a.handle === accounts.activeHandle)
-          ?.jwt ?? ""
+      ? (accounts.accounts.find((a) => a.handle === accounts.activeHandle)
+          ?.jwt ?? "")
       : "",
   });
 }

@@ -1,4 +1,3 @@
-import { styled } from "@linaria/react";
 import {
   IonBackButton,
   IonButtons,
@@ -6,33 +5,11 @@ import {
   IonText,
   IonToolbar,
 } from "@ionic/react";
-import AppHeader from "../../shared/AppHeader";
 
-const HelpIonContent = styled(IonContent)`
-  line-height: 1.4;
-`;
+import AppHeader from "#/features/shared/AppHeader";
+import { cx } from "#/helpers/css";
 
-const List = styled.ul`
-  li:not(:last-of-type) {
-    margin-bottom: 1rem;
-  }
-`;
-
-const Compare = styled.div`
-  display: flex;
-  text-align: center;
-  align-items: center;
-  justify-content: space-around;
-
-  line-height: 1.5;
-
-  margin: 1rem 0;
-
-  > div {
-    display: flex;
-    flex-direction: column;
-  }
-`;
+import styles from "./LearnMore.module.css";
 
 export default function LearnMore() {
   return (
@@ -44,7 +21,7 @@ export default function LearnMore() {
           </IonButtons>
         </IonToolbar>
       </AppHeader>
-      <HelpIonContent className="ion-padding">
+      <IonContent className={cx("ion-padding", styles.content)}>
         <h2>How does this app work?</h2>
         <p>
           Lemmy is a decentralized <strong>network of communities</strong> where
@@ -68,7 +45,7 @@ export default function LearnMore() {
           </IonText>
           .
         </p>
-        <List>
+        <ul className={styles.list}>
           <li>
             <IonText color="secondary">
               <strong>Lemmy</strong>
@@ -78,7 +55,7 @@ export default function LearnMore() {
               <strong>E-Mail</strong>
             </IonText>
             , has a common set of features.
-            <Compare>
+            <div className={styles.compare}>
               <div>
                 <IonText color="secondary">
                   <strong>Create posts</strong>
@@ -96,7 +73,7 @@ export default function LearnMore() {
                   <strong>Receive mail</strong>
                 </IonText>
               </div>
-            </Compare>
+            </div>
           </li>
           <li>
             Your{" "}
@@ -108,7 +85,7 @@ export default function LearnMore() {
               <strong>E-Mail account</strong>
             </IonText>
             : it’s hosted by a particular provider.
-            <Compare>
+            <div className={styles.compare}>
               <div>
                 <IonText color="secondary">
                   <strong>lemmy.world</strong>
@@ -126,7 +103,7 @@ export default function LearnMore() {
                   <strong>hotmail.com</strong>
                 </IonText>
               </div>
-            </Compare>
+            </div>
             <div>
               Like{" "}
               <IonText color="warning">
@@ -149,8 +126,8 @@ export default function LearnMore() {
             </IonText>
             .
           </li>
-        </List>
-      </HelpIonContent>
+        </ul>
+      </IonContent>
     </>
   );
 }

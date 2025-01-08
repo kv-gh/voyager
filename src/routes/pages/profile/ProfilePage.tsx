@@ -1,24 +1,29 @@
 import {
   IonButton,
   IonButtons,
+  IonIcon,
   IonPage,
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
-import AsyncProfile from "../../../features/user/AsyncProfile";
-import { useAppSelector } from "../../../store";
-import {
-  userHandleSelector,
-  loggedInSelector,
-  accountsListEmptySelector,
-} from "../../../features/auth/authSelectors";
-import LoggedOut from "../../../features/user/LoggedOut";
+import { swapHorizontalSharp } from "ionicons/icons";
 import { useContext, useRef } from "react";
-import { PageContext } from "../../../features/auth/PageContext";
-import FeedContent from "../shared/FeedContent";
-import ProfilePageActions from "../../../features/user/ProfilePageActions";
-import { useSetActivePage } from "../../../features/auth/AppContext";
-import AppHeader from "../../../features/shared/AppHeader";
+
+import { useSetActivePage } from "#/features/auth/AppContext";
+import {
+  accountsListEmptySelector,
+  loggedInSelector,
+  userHandleSelector,
+} from "#/features/auth/authSelectors";
+import { PageContext } from "#/features/auth/PageContext";
+import AppHeader from "#/features/shared/AppHeader";
+import DocumentTitle from "#/features/shared/DocumentTitle";
+import AsyncProfile from "#/features/user/AsyncProfile";
+import LoggedOut from "#/features/user/LoggedOut";
+import ProfilePageActions from "#/features/user/ProfilePageActions";
+import { isIosTheme } from "#/helpers/device";
+import FeedContent from "#/routes/pages/shared/FeedContent";
+import { useAppSelector } from "#/store";
 
 export default function ProfilePage() {
   const pageRef = useRef<HTMLElement>(null);
@@ -34,19 +39,26 @@ export default function ProfilePage() {
 
   useSetActivePage(pageRef, !handle);
 
+  const title = handle ?? connectedInstance;
+
   return (
     <IonPage className="grey-bg" ref={pageRef}>
       <AppHeader>
         <IonToolbar>
           {!accountsListEmpty && (
-            <IonButtons slot="start">
+            <IonButtons slot="secondary">
               <IonButton onClick={() => presentAccountSwitcher()}>
-                Accounts
+                {isIosTheme() ? (
+                  "Accounts"
+                ) : (
+                  <IonIcon icon={swapHorizontalSharp} slot="icon-only" />
+                )}
               </IonButton>
             </IonButtons>
           )}
 
-          <IonTitle>{handle ?? connectedInstance}</IonTitle>
+          <DocumentTitle>{title}</DocumentTitle>
+          <IonTitle>{title}</IonTitle>
 
           {loggedIn && (
             <IonButtons slot="end">

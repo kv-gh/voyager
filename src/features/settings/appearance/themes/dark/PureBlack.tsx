@@ -1,6 +1,7 @@
-import { IonToggle } from "@ionic/react";
-import { InsetIonItem } from "../../../../../routes/pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../../../store";
+import { IonItem, IonToggle } from "@ionic/react";
+
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { setPureBlack } from "../../../settingsSlice";
 
 export default function PureBlack() {
@@ -10,13 +11,13 @@ export default function PureBlack() {
   );
 
   return (
-    <InsetIonItem>
+    <IonItem>
       <IonToggle
         checked={pureBlack}
         onIonChange={(e) => dispatch(setPureBlack(e.detail.checked))}
       >
         Pure Black Dark Mode
       </IonToggle>
-    </InsetIonItem>
+    </IonItem>
   );
 }

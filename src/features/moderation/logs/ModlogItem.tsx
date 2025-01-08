@@ -1,4 +1,20 @@
-import { ModlogItemType } from "../../../routes/pages/shared/ModlogPage";
+import { IonIcon, IonItem } from "@ionic/react";
+import { timerOutline } from "ionicons/icons";
+
+import Ago from "#/features/labels/Ago";
+import { cx } from "#/helpers/css";
+import { isTouchDevice } from "#/helpers/device";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
+
+import {
+  getModColor,
+  getModIcon,
+  getModName,
+  ModeratorRole,
+} from "../useCanModerate";
+import useIsAdmin from "../useIsAdmin";
+import { ModlogItemType } from "./helpers";
+import ModlogItemMoreActions from "./ModlogItemMoreActions";
 import addCommunity from "./types/addCommunity";
 import addInstance from "./types/addInstance";
 import banFromCommunity from "./types/banFromCommunity";
@@ -14,45 +30,23 @@ import removeComment from "./types/removeComment";
 import removeCommunity from "./types/removeCommunity";
 import removePost from "./types/removePost";
 import transferCommunity from "./types/transferCommunity";
-import { IonItem } from "@ionic/react";
-import { maxWidthCss } from "../../shared/AppContent";
-import Ago from "../../labels/Ago";
-import { useBuildGeneralBrowseLink } from "../../../helpers/routes";
-import { styled } from "@linaria/react";
 
-const Contents = styled.div`
-  font-size: 0.875em;
-  width: 100%;
-
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 0;
-`;
-
-const TitleLine = styled.div`
-  display: flex;
-  justify-content: space-between;
-
-  aside {
-    color: var(--ion-color-medium);
-  }
-`;
-
-const Title = styled.div``;
-const Message = styled.div`
-  color: var(--ion-color-medium);
-`;
+import sharedStyles from "#/features/shared/shared.module.css";
+import styles from "./ModlogItem.module.css";
 
 interface ModLogItemProps {
   item: ModlogItemType;
 }
 
 export interface LogEntryData {
+  icon: string;
   title: string;
   when: string;
   message?: string;
+  reason?: string;
+  expires?: string;
   by?: string;
+  role?: ModeratorRole;
   link?: string;
 }
 
@@ -99,24 +93,73 @@ function renderModlogData(item: ModlogItemType): LogEntryData {
 
 export function ModlogItem({ item }: ModLogItemProps) {
   const buildGeneralBrowseLink = useBuildGeneralBrowseLink();
-  const { title, by, when, message, link } = renderModlogData(item);
+  const {
+    icon,
+    title,
+    when,
+    by,
+    role: role_,
+    message,
+    reason,
+    expires,
+    link,
+  } = renderModlogData(item);
+
+  const isAdmin = useIsAdmin(
+    (() => {
+      if ("admin" in item) return item.admin;
+      if ("moderator" in item) return item.moderator;
+    })(),
+  );
+
+  const role = (() => {
+    if (by && isAdmin) return "admin-local";
+    if ("admin" in item) return "admin-remote";
+
+    return role_ ?? "mod";
+  })();
 
   return (
     <IonItem
-      className={maxWidthCss}
+      mode="ios" // Use iOS style activatable tap highlight
+      className={cx(
+        isTouchDevice() && "ion-activatable",
+        sharedStyles.maxWidth,
+      )}
+      href={undefined}
       routerLink={link ? buildGeneralBrowseLink(link) : undefined}
       detail={false}
     >
-      <Contents>
-        <TitleLine>
-          <Title>{title}</Title>
-          <aside>
-            {by && <span>{by} · </span>}
-            <Ago date={when} />
-          </aside>
-        </TitleLine>
-        <Message>{message}</Message>
-      </Contents>
+      <div className={styles.container}>
+        <div className={styles.startContent}>
+          <IonIcon icon={icon} className={styles.typeIcon} />
+        </div>
+        <div className={styles.content}>
+          <div className={styles.header}>
+            <div>{title}</div>
+            <aside>
+              <ModlogItemMoreActions item={item} role={role} />
+              <Ago date={when} />
+            </aside>
+          </div>
+          <div className={styles.body}>{message}</div>
+          {reason && <div>Reason: {reason}</div>}
+          <div className={styles.footer}>
+            <div
+              className={styles.by}
+              style={{ color: `var(--ion-color-${getModColor(role)}-shade)` }}
+            >
+              <IonIcon icon={getModIcon(role)} />
+              {by ? by : getModName(role)}
+            </div>
+            {expires && (
+              <aside>
+                <IonIcon icon={timerOutline} /> <Ago date={expires} />
+              </aside>
+            )}
+          </div>
+        </div>
+      </div>
     </IonItem>
   );
 }

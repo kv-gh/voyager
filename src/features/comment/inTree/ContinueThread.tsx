@@ -1,27 +1,17 @@
-import { CustomIonItem } from "../Comment";
-import CommentHr from "./CommentHr";
-import { IonIcon } from "@ionic/react";
+import { IonIcon, IonItem } from "@ionic/react";
 import { chevronForward } from "ionicons/icons";
 import AnimateHeight from "react-animate-height";
-import { CommentNodeI } from "../../../helpers/lemmy";
-import { useBuildGeneralBrowseLink } from "../../../helpers/routes";
 import { useParams } from "react-router";
-import { styled } from "@linaria/react";
-import { PositionedContainer } from "../elements/PositionedContainer";
-import { Container } from "../elements/Container";
 
-const MoreRepliesBlock = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
+import CommentContainer from "#/features/comment/elements/CommentContainer";
+import { PositionedContainer } from "#/features/comment/elements/PositionedContainer";
+import { CommentNodeI } from "#/helpers/lemmy";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
 
-  color: var(--ion-color-primary);
-`;
+import CommentHr from "./CommentHr";
 
-const ChevronIcon = styled(IonIcon)`
-  font-size: 1rem;
-`;
+import commentStyles from "../Comment.module.css";
+import styles from "./ContinueThread.module.css";
 
 interface CommentExpanderProps {
   depth: number;
@@ -45,7 +35,8 @@ export default function ContinueThread({
   return (
     <AnimateHeight duration={200} height={collapsed ? 0 : "auto"}>
       <CommentHr depth={depth} />
-      <CustomIonItem
+      <IonItem
+        className={commentStyles.commentItem}
         detail={false}
         routerLink={buildGeneralBrowseLink(
           `/c/${community}/comments/${postId}/thread/${comment.comment_view.comment.id}`,
@@ -54,14 +45,14 @@ export default function ContinueThread({
         <PositionedContainer
           depth={absoluteDepth === depth ? depth || 0 : (depth || 0) + 1}
         >
-          <Container depth={absoluteDepth ?? depth ?? 0}>
-            <MoreRepliesBlock>
+          <CommentContainer depth={absoluteDepth ?? depth ?? 0}>
+            <div className={styles.moreRepliesBlock}>
               Continue Thread...
-              <ChevronIcon icon={chevronForward} />
-            </MoreRepliesBlock>
-          </Container>
+              <IonIcon icon={chevronForward} className={styles.chevronIcon} />
+            </div>
+          </CommentContainer>
         </PositionedContainer>
-      </CustomIonItem>
+      </IonItem>
     </AnimateHeight>
   );
 }

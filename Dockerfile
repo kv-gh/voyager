@@ -19,40 +19,38 @@ FROM base AS builder
 # Prepare deps
 RUN apk add --no-cache git
 
-# Prepare build deps ( ignore postinstall scripts for now )
-COPY package.json pnpm-lock.yaml ./
+# Prepare build deps
+# Copy .env conditionally https://stackoverflow.com/a/31532674/1319878
+COPY package.json pnpm-lock.yaml .npmrc .en[v] ./
 COPY patches ./patches
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --ignore-scripts
+# Add APP_VERSION to .env if it doesn't already exist
+RUN grep -q 'APP_VERSION=' .env || \
+    echo "APP_VERSION=`node -p \"require('./package.json').version\"`" >> .env
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 # Copy all source files
-COPY . ./
+COPY index.html vite.config.ts manifest.json tsconfig.json compilerOptions.js ./
+COPY public ./public
+COPY scripts ./scripts
+COPY src ./src
 
 # Build
 RUN pnpm build
 
 
 # stage 2: runtime
-FROM base AS runner
+FROM docker.io/library/nginx AS runner
 
 ARG UID=911 GID=911
 
-COPY package.json pnpm-lock.yaml server.mjs ./
-COPY patches ./patches
+COPY scripts/docker_generate_config.sh /docker-entrypoint.d/generate_config.sh
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile --ignore-scripts
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
-# Create a dedicated user and group
-RUN set -eux; \
-  addgroup -g "${GID}" voyager; \
-  adduser -u "${UID}" -D -G voyager voyager
+COPY --from=builder /voyager/dist /var/www
 
-USER voyager
-
-ENV NODE_ENV=production PORT=5314
-
-COPY --from=builder /voyager/dist ./dist
+ENV NGINX_PORT=5314
 
 EXPOSE 5314/tcp
-
-CMD ["node","./server.mjs"]

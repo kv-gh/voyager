@@ -1,11 +1,12 @@
-import { IonLabel, IonList } from "@ionic/react";
-import { InsetIonItem } from "../../../user/Profile";
-import { ListHeader } from "../../shared/formatting";
-import InfiniteScrolling from "./InfiniteScrolling";
-import UpvoteOnSave from "./UpvoteOnSave";
-import DefaultSort from "./DefaultSort";
-import RememberCommunitySort from "./RememberCommunitySort";
+import { IonItem, IonLabel, IonList } from "@ionic/react";
+
+import { ListHeader } from "#/features/settings/shared/formatting";
+
 import AutoplayMedia from "./AutoplayMedia";
+import DefaultSort from "./DefaultSort";
+import InfiniteScrolling from "./InfiniteScrolling";
+import RememberCommunityPostSort from "./RememberCommunityPostSort";
+import UpvoteOnSave from "./UpvoteOnSave";
 
 export default function Posts() {
   return (
@@ -14,13 +15,13 @@ export default function Posts() {
         <IonLabel>Posts</IonLabel>
       </ListHeader>
       <IonList inset>
-        <InsetIonItem routerLink="/settings/general/hiding">
+        <IonItem routerLink="/settings/general/hiding">
           <IonLabel className="ion-text-nowrap">
             Mark Read / Hiding Posts
           </IonLabel>
-        </InsetIonItem>
+        </IonItem>
         <DefaultSort />
-        <RememberCommunitySort />
+        <RememberCommunityPostSort />
         <InfiniteScrolling />
         <UpvoteOnSave />
         <AutoplayMedia />

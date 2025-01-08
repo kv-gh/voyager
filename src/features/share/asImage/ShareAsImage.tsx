@@ -1,115 +1,74 @@
+import { CapacitorHttp } from "@capacitor/core";
+import { Directory, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { IonButton, IonItem, IonLabel, IonList, IonToggle } from "@ionic/react";
+import { domToBlob, Options as DomToBlobOptions } from "modern-screenshot";
 import {
-  ReactNode,
   createContext,
+  ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import CommentTree from "../../comment/inTree/CommentTree";
-import { buildCommentsTree, getDepthFromComment } from "../../../helpers/lemmy";
+
+import CommentTree from "#/features/comment/inTree/CommentTree";
+import PostHeader from "#/features/post/detail/PostHeader";
+import { blobToDataURL, blobToString } from "#/helpers/blob";
+import { cx } from "#/helpers/css";
+import { isNative } from "#/helpers/device";
+import { buildCommentsTree, getDepthFromComment } from "#/helpers/lemmy";
+import useAppToast from "#/helpers/useAppToast";
+import { getImageSrc } from "#/services/lemmy";
+import { getServerUrl } from "#/services/nativeFetch";
+
 import AddRemoveButtons from "./AddRemoveButtons";
-import Watermark from "./Watermark";
-import { isNative } from "../../../helpers/device";
-import { Share } from "@capacitor/share";
-import { Filesystem, Directory } from "@capacitor/filesystem";
-import { blobToDataURL, blobToString } from "../../../helpers/blob";
-import useAppToast from "../../../helpers/useAppToast";
 import includeStyleProperties from "./includeStyleProperties";
-import { CapacitorHttp } from "@capacitor/core";
-import { domToBlob } from "modern-screenshot";
-import { getImageSrc } from "../../../services/lemmy";
 import { ShareAsImageData } from "./ShareAsImageModal";
-import PostHeader from "../../post/detail/PostHeader";
-import { webviewServerUrl } from "../../../services/nativeFetch";
-import { styled } from "@linaria/react";
-import { css } from "@linaria/core";
+import Watermark from "./Watermark";
 
-const Container = styled.div`
-  --bottom-padding: max(
-    var(--ion-safe-area-bottom, env(safe-area-inset-bottom, 0)),
-    16px
-  );
+import styles from "./ShareAsImage.module.css";
 
-  --top-space: 50px;
+const domToBlobOptions: DomToBlobOptions = {
+  scale: 4,
+  features: {
+    // Without this, render fails on certain images
+    removeControlCharacter: false,
+  },
+  includeStyleProperties,
+  filter: (node) => {
+    if (!(node instanceof HTMLElement)) return true;
 
-  @media (max-height: 650px) {
-    --top-space: 0px;
-  }
+    return node.tagName !== "VIDEO";
+  },
+  fetchFn: isNative()
+    ? async (url) => {
+        // Pass through relative URLs to browser fetching
+        // !: running in native environment
+        if (url.startsWith(`${getServerUrl!()}/`)) {
+          return false;
+        }
 
-  display: grid;
-  grid-template-rows: max-content 1fr max-content;
+        // Attempt upgrade to https (insecure will be blocked)
+        if (url.startsWith("http://")) {
+          url = url.replace(/^http:\/\//, "https://");
+        }
 
-  max-height: calc(
-    100vh - var(--ion-safe-area-top, env(safe-area-inset-top, 0)) - var(
-        --top-space
-      )
-  );
+        const nativeResponse = await CapacitorHttp.get({
+          // if pictrs, convert large gifs to jpg
+          url: getImageSrc(url, { format: "jpg" }),
+          responseType: "blob",
+        });
 
-  padding: 0 16px var(--bottom-padding);
-`;
-
-const sharedImgCss = `
-  min-height: 0;
-  max-height: 100%;
-  justify-self: center;
-  max-width: 100%;
-
-  filter: var(--share-img-drop-shadow);
-
-  .ios & {
-    border-radius: 8px;
-  }
-
-  .md & {
-    margin-top: 16px;
-  }
-`;
-
-const PlaceholderImg = styled.div`
-  ${sharedImgCss}
-
-  background: white;
-
-  .theme-dark & {
-    background: black;
-  }
-
-  height: 80px;
-  width: 80%;
-`;
-
-const PreviewImg = styled.img`
-  ${sharedImgCss}
-`;
-
-const StyledIonList = styled(IonList)`
-  &.list-ios.list-inset {
-    margin-inline-start: 0;
-    margin-inline-end: 0;
-  }
-`;
-
-const ParentCommentValues = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-`;
-
-const CommentSnapshotContainer = styled.div`
-  background: var(--ion-item-background, var(--ion-background-color, #fff));
-`;
-
-const PostCommentSpacer = styled.div`
-  height: 6px;
-`;
-
-const hideBottomBorderCss = css`
-  --inner-border-width: 0 0 0 0;
-`;
+        // Workaround that will probably break in a future capacitor upgrade
+        // https://github.com/ionic-team/capacitor/issues/6126
+        return `data:${
+          nativeResponse.headers["Content-Type"] || "image/png"
+        };base64,${nativeResponse.data}`;
+      }
+    : undefined,
+};
 
 const shareAsImageRenderRoot = document.querySelector(
   "#share-as-image-root",
@@ -140,6 +99,8 @@ export default function ShareAsImage({ data, header }: ShareAsImageProps) {
       : undefined) ?? 0,
   );
 
+  const hasPostBody = data.post.post.body || data.post.post.url;
+
   useEffect(() => {
     if (!blob) return;
 
@@ -148,7 +109,7 @@ export default function ShareAsImage({ data, header }: ShareAsImageProps) {
     })();
   }, [blob]);
 
-  const filteredComments = useMemo(() => {
+  const filteredComments = (() => {
     if (!("comment" in data)) return [];
 
     const filtered = data.comments
@@ -164,66 +125,26 @@ export default function ShareAsImage({ data, header }: ShareAsImageProps) {
       );
 
     return filtered;
-  }, [data, minDepth]);
+  })();
 
-  const commentNode = useMemo(
-    () =>
-      filteredComments.length ? buildCommentsTree(filteredComments, true) : [],
-    [filteredComments],
-  );
+  const commentNode = filteredComments.length
+    ? buildCommentsTree(filteredComments, true)
+    : [];
 
   const render = useCallback(async () => {
     try {
       const blob = await domToBlob(
         shareAsImageRenderRoot.querySelector(".inner") as HTMLElement,
-        {
-          scale: 4,
-          features: {
-            // Without this, render fails on certain images
-            removeControlCharacter: false,
-          },
-          includeStyleProperties,
-          filter: (node) => {
-            if (!(node instanceof HTMLElement)) return true;
-
-            return node.tagName !== "VIDEO";
-          },
-          fetchFn: isNative()
-            ? async (url) => {
-                // Pass through relative URLs to browser fetching
-                if (url.startsWith(`${webviewServerUrl}/`)) {
-                  return false;
-                }
-
-                // Attempt upgrade to https (insecure will be blocked)
-                if (url.startsWith("http://")) {
-                  url = url.replace(/^http:\/\//, "https://");
-                }
-
-                const nativeResponse = await CapacitorHttp.get({
-                  // if pictrs, convert large gifs to jpg
-                  url: getImageSrc(url, { format: "jpg" }),
-                  responseType: "blob",
-                });
-
-                // Workaround that will probably break in a future capacitor upgrade
-                // https://github.com/ionic-team/capacitor/issues/6126
-                return `data:${
-                  nativeResponse.headers["Content-Type"] || "image/png"
-                };base64,${nativeResponse.data}`;
-              }
-            : undefined,
-        },
+        domToBlobOptions,
       );
-      setBlob(blob ?? undefined);
+      setBlob(() => blob ?? undefined);
     } catch (error) {
       presentToast({
-        message: "Error rendering image.",
+        message: "Error rendering image",
       });
 
       throw error;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presentToast]);
 
   useLayoutEffect(() => {
@@ -278,12 +199,13 @@ export default function ShareAsImage({ data, header }: ShareAsImageProps) {
   }
 
   return (
-    <Container>
+    <div className={styles.container}>
       {header}
       {!imageSrc ? (
-        <PlaceholderImg />
+        <div className={styles.placeholderImg} />
       ) : (
-        <PreviewImg
+        <img
+          className={styles.previewImg}
           draggable={false}
           src={imageSrc}
           onLoad={(e) => {
@@ -304,7 +226,7 @@ export default function ShareAsImage({ data, header }: ShareAsImageProps) {
         />
       )}
 
-      <StyledIonList inset lines="full">
+      <IonList className={styles.list} inset lines="full">
         {"comment" in data && (
           <>
             <IonItem>
@@ -315,7 +237,7 @@ export default function ShareAsImage({ data, header }: ShareAsImageProps) {
                 Include Post Details
               </IonToggle>
             </IonItem>
-            {includePostDetails && (
+            {includePostDetails && hasPostBody ? (
               <IonItem>
                 <IonToggle
                   checked={includePostText}
@@ -324,12 +246,12 @@ export default function ShareAsImage({ data, header }: ShareAsImageProps) {
                   Include Post Text
                 </IonToggle>
               </IonItem>
-            )}
+            ) : undefined}
 
             {!!getDepthFromComment(data.comment.comment) && (
               <IonItem>
                 <IonLabel>Parent Comments</IonLabel>
-                <ParentCommentValues slot="end">
+                <div className={styles.parentCommentValues} slot="end">
                   <strong>
                     {(getDepthFromComment(data.comment.comment) ?? 0) -
                       minDepth}
@@ -342,7 +264,7 @@ export default function ShareAsImage({ data, header }: ShareAsImageProps) {
                     onAdd={() => setMinDepth((minDepth) => minDepth - 1)}
                     onRemove={() => setMinDepth((minDepth) => minDepth + 1)}
                   />
-                </ParentCommentValues>
+                </div>
               </IonItem>
             )}
           </>
@@ -373,17 +295,19 @@ export default function ShareAsImage({ data, header }: ShareAsImageProps) {
             Watermark
           </IonToggle>
         </IonItem>
-      </StyledIonList>
+      </IonList>
       <IonButton onClick={onShare}>
         {isNative() || "canShare" in navigator ? "Share" : "Download"}
       </IonButton>
 
       {createPortal(
-        <CommentSnapshotContainer className="inner">
-          <ShareImageContext.Provider value={{ hideUsernames, hideCommunity }}>
+        <div className={cx(styles.commentSnapshotContainer, "inner")}>
+          <ShareImageContext.Provider
+            value={{ capturing: true, hideUsernames, hideCommunity }}
+          >
             {includePostDetails && (
               <PostHeader
-                className={!("comment" in data) ? hideBottomBorderCss : ""}
+                className={!("comment" in data) ? styles.hideBottomBorder : ""}
                 post={data.post}
                 showPostText={includePostText}
                 showPostActions={false}
@@ -392,7 +316,9 @@ export default function ShareAsImage({ data, header }: ShareAsImageProps) {
             )}
             {"comment" in data && (
               <>
-                {includePostDetails && <PostCommentSpacer />}
+                {includePostDetails && (
+                  <div className={styles.postCommentSpacer} />
+                )}
                 <CommentTree
                   comment={commentNode[0]!}
                   first
@@ -403,14 +329,18 @@ export default function ShareAsImage({ data, header }: ShareAsImageProps) {
             )}
           </ShareImageContext.Provider>
           {watermark && <Watermark />}
-        </CommentSnapshotContainer>,
+        </div>,
         shareAsImageRenderRoot,
       )}
-    </Container>
+    </div>
   );
 }
 
 export const ShareImageContext = createContext({
+  /**
+   * `true` when components are being rendered for image capture
+   */
+  capturing: false,
   hideUsernames: false,
   hideCommunity: false,
 });

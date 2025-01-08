@@ -1,6 +1,4 @@
 import {
-  IonButton,
-  IonIcon,
   IonItem,
   IonItemOption,
   IonItemOptions,
@@ -9,26 +7,12 @@ import {
   IonRadio,
   IonReorder,
   IonText,
-  ItemSlidingCustomEvent,
 } from "@ionic/react";
-import { removeCircle } from "ionicons/icons";
+
+import { RemoveItemButton } from "#/features/shared/ListEditor";
+import { useAppDispatch } from "#/store";
+
 import { Credential, logoutAccount } from "./authSlice";
-import { useAppDispatch } from "../../store";
-import { useRef } from "react";
-import { styled } from "@linaria/react";
-
-const RemoveIcon = styled(IonIcon)`
-  position: relative;
-
-  &:after {
-    z-index: -1;
-    content: "";
-    position: absolute;
-    inset: 5px;
-    border-radius: 50%;
-    background: white;
-  }
-`;
 
 interface AccountProps {
   editing: boolean;
@@ -38,7 +22,6 @@ interface AccountProps {
 
 export default function Account({ editing, account, allowEdit }: AccountProps) {
   const dispatch = useAppDispatch();
-  const slidingRef = useRef<ItemSlidingCustomEvent["target"]>(null);
 
   function logout() {
     dispatch(logoutAccount(account.handle));
@@ -53,7 +36,7 @@ export default function Account({ editing, account, allowEdit }: AccountProps) {
   );
 
   return (
-    <IonItemSliding ref={slidingRef}>
+    <IonItemSliding>
       {allowEdit && (
         <IonItemOptions side="end" onIonSwipe={logout}>
           <IonItemOption color="danger" expandable onClick={logout}>
@@ -62,17 +45,7 @@ export default function Account({ editing, account, allowEdit }: AccountProps) {
         </IonItemOptions>
       )}
       <IonItem>
-        {editing && (
-          <IonButton
-            color="none"
-            slot="start"
-            onClick={() => {
-              slidingRef.current?.open("end");
-            }}
-          >
-            <RemoveIcon icon={removeCircle} color="danger" slot="icon-only" />
-          </IonButton>
-        )}
+        {editing && <RemoveItemButton />}
         {editing ? (
           <>
             <IonLabel className="ion-text-nowrap">{label}</IonLabel>

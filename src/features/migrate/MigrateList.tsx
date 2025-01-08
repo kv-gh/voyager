@@ -1,4 +1,5 @@
 import {
+  IonItem,
   IonItemOption,
   IonItemOptions,
   IonItemSliding,
@@ -6,18 +7,19 @@ import {
   IonList,
   useIonAlert,
 } from "@ionic/react";
-import { InsetIonItem } from "../user/Profile";
-import { useAppDispatch, useAppSelector } from "../../store";
 import { useEffect } from "react";
+
+import { migrateParseError } from "#/helpers/toastMessages";
+import { getPathname, isValidUrl } from "#/helpers/url";
+import useAppToast from "#/helpers/useAppToast";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import { parseSubsFromLink } from "./MigrateSubsList";
 import {
   addMigrationLink,
   getMigrationLinks,
   removeMigrationLink,
 } from "./migrationSlice";
-import { getPathname, isValidUrl } from "../../helpers/url";
-import { parseSubsFromLink } from "./MigrateSubsList";
-import useAppToast from "../../helpers/useAppToast";
-import { migrateParseError } from "../../helpers/toastMessages";
 
 export default function MigrateList() {
   const dispatch = useAppDispatch();
@@ -108,17 +110,17 @@ export default function MigrateList() {
                 Forget
               </IonItemOption>
             </IonItemOptions>
-            <InsetIonItem
+            <IonItem
               routerLink={`/settings/reddit-migrate/${encodeURIComponent(link)}`}
             >
               <IonLabel class="ion-text-nowrap">{getPathname(link)}</IonLabel>
-            </InsetIonItem>
+            </IonItem>
           </IonItemSliding>
         ))}
         <IonItemSliding>
-          <InsetIonItem onClick={() => add()} button detail={false}>
+          <IonItem onClick={() => add()} button detail={false}>
             <IonLabel color="primary">Add multireddit link</IonLabel>
-          </InsetIonItem>
+          </IonItem>
         </IonItemSliding>
       </IonList>
     </>

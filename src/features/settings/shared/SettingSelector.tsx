@@ -3,25 +3,14 @@ import {
   IonActionSheetCustomEvent,
   OverlayEventDetail,
 } from "@ionic/core";
-import { IonActionSheet, IonLabel } from "@ionic/react";
-import { startCase } from "lodash";
+import { IonActionSheet, IonItem, IonLabel } from "@ionic/react";
+import { startCase } from "es-toolkit";
 import React, { useState } from "react";
-import { Dispatchable, useAppDispatch } from "../../../store";
-import { InsetIonItem } from "./formatting";
-import { css, cx } from "@linaria/core";
 
-const iconCss = css`
-  position: relative;
-  display: inline-flex;
-  height: 40px;
-  width: auto;
-  stroke: var(--ion-color-primary);
-  fill: var(--ion-color-primary);
-`;
+import { cx } from "#/helpers/css";
+import { Dispatchable, useAppDispatch } from "#/store";
 
-const iconMirrorCss = css`
-  transform: scaleX(-1);
-`;
+import styles from "./SettingSelector.module.css";
 
 export interface SettingSelectorProps<T, O extends Record<string, T>> {
   title: string;
@@ -69,7 +58,7 @@ export default function SettingSelector<
     }));
 
   return (
-    <InsetIonItem
+    <IonItem
       button
       onClick={() => setOpen(true)}
       disabled={disabled}
@@ -77,13 +66,14 @@ export default function SettingSelector<
     >
       {Icon && (
         <Icon
-          className={cx(iconCss, iconMirrored && iconMirrorCss)}
+          className={cx(styles.icon, iconMirrored && styles.iconMirrored)}
           slot="start"
         />
       )}
       <IonLabel className="ion-text-nowrap">{title}</IonLabel>
       <IonLabel slot="end" color="medium" className="ion-no-margin">
         {getSelectedLabel?.(selected) ??
+          getOptionLabel?.(selected) ??
           (typeof selected === "string" ? startCase(selected) : selected)}
       </IonLabel>
       <IonActionSheet
@@ -100,6 +90,6 @@ export default function SettingSelector<
         header={openTitle ?? title}
         buttons={buttons}
       />
-    </InsetIonItem>
+    </IonItem>
   );
 }

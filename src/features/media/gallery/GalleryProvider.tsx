@@ -1,5 +1,8 @@
-const MAX_IMAGE_WIDTH = 4000;
-
+import { StatusBar } from "@capacitor/status-bar";
+import { asyncNoop, compact, noop } from "es-toolkit";
+import { PostView } from "lemmy-js-client";
+import type { PreparedPhotoSwipeOptions, ZoomLevelOption } from "photoswipe";
+import PhotoSwipeLightbox from "photoswipe/lightbox";
 import React, {
   ComponentRef,
   createContext,
@@ -9,20 +12,19 @@ import React, {
   useRef,
   useState,
 } from "react";
-import GalleryPostActions from "./GalleryPostActions";
 import { createPortal } from "react-dom";
-import { PostView } from "lemmy-js-client";
-import PhotoSwipeLightbox, { PreparedPhotoSwipeOptions } from "photoswipe";
-import { getSafeArea, isAndroid, isNative } from "../../../helpers/device";
-
-import "photoswipe/style.css";
 import { useLocation } from "react-router";
-import { StatusBar } from "@capacitor/status-bar";
-import { setPostRead } from "../../post/postSlice";
-import { useAppDispatch } from "../../../store";
-import GalleryMedia from "./GalleryMedia";
-import ImageMoreActions from "./ImageMoreActions";
-import type ZoomLevel from "photoswipe/dist/types/slide/zoom-level";
+
+import { findBlurOverlayContainer } from "#/features/post/inFeed/large/media/BlurOverlayMessage";
+import { setPostRead } from "#/features/post/postSlice";
+import { getSafeArea, isAndroid, isNative } from "#/helpers/device";
+import { useAppDispatch, useAppSelector } from "#/store";
+
+import GalleryPostActions from "./actions/GalleryPostActions";
+import ImageMoreActions from "./actions/ImageMoreActions";
+import type GalleryMedia from "./GalleryMedia";
+
+const MAX_IMAGE_WIDTH = 4000;
 
 interface IGalleryContext {
   // used for determining whether page needs to be scrolled up first
@@ -36,21 +38,21 @@ interface IGalleryContext {
 }
 
 export const GalleryContext = createContext<IGalleryContext>({
-  open: () => {},
-  close: () => {},
+  open: asyncNoop,
+  close: noop,
 });
 
 const galleryHashEnabled = isAndroid();
 const OPEN_HASH = "galleryOpen";
 
-interface GalleryProviderProps {
-  children: React.ReactNode;
-}
-
 type ThumbEl = ComponentRef<typeof GalleryMedia>;
 
-export default function GalleryProvider({ children }: GalleryProviderProps) {
+export default function GalleryProvider({ children }: React.PropsWithChildren) {
   const dispatch = useAppDispatch();
+  const showControlsOnOpen = useAppSelector(
+    (state) => state.settings.general.media.showControlsOnOpen,
+  );
+  const showControlsOnOpenRef = useRef(showControlsOnOpen);
   const [actionContainer, setActionContainer] = useState<HTMLElement | null>(
     null,
   );
@@ -61,24 +63,29 @@ export default function GalleryProvider({ children }: GalleryProviderProps) {
   const location = useLocation();
 
   useEffect(() => {
+    showControlsOnOpenRef.current = showControlsOnOpen;
+  }, [showControlsOnOpen]);
+
+  useEffect(() => {
     return () => {
       lightboxRef.current?.destroy();
       lightboxRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!lightboxRef.current) return;
 
-    lightboxRef.current.destroy();
-    lightboxRef.current = null;
+    lightboxRef.current.pswp?.close();
   }, [location.pathname]);
 
   const close = useCallback(() => {
     if (!lightboxRef.current) return;
 
-    lightboxRef.current.close();
+    if (lightboxRef.current.pswp)
+      lightboxRef.current.pswp.options.showHideAnimationType = "fade";
+
+    lightboxRef.current.pswp?.close();
   }, []);
 
   const open = useCallback(
@@ -117,13 +124,13 @@ export default function GalleryProvider({ children }: GalleryProviderProps) {
               thumbEl instanceof HTMLImageElement
                 ? thumbEl.naturalWidth
                 : thumbEl.width,
+            alt: getAlt(thumbEl),
           },
         ],
         showHideAnimationType: animationType ?? "fade",
         zoom: false,
         bgOpacity: 1,
         // Put in ion-app element so share IonActionSheet is on top
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         appendToEl: document.querySelector("ion-app")!,
         paddingFn: () => getSafeArea(),
         pswpModule: () => import("photoswipe"),
@@ -157,7 +164,11 @@ export default function GalleryProvider({ children }: GalleryProviderProps) {
         },
       });
 
-      let zoomLevel: ZoomLevel;
+      // ZoomLevel is not directly exported from photoswipe
+      let zoomLevel: Parameters<
+        Extract<ZoomLevelOption, (...args: never) => unknown>
+      >[0];
+
       let currZoomLevel = 0;
 
       instance.on("zoomLevelsUpdate", (e) => {
@@ -165,9 +176,27 @@ export default function GalleryProvider({ children }: GalleryProviderProps) {
         if (!currZoomLevel) currZoomLevel = e.zoomLevels.min;
       });
 
+      instance.on("openingAnimationStart", () => {
+        if (animationType !== "zoom") return;
+
+        compact([thumbEl, findBlurOverlayContainer(thumbEl)]).forEach((el) =>
+          el.style.setProperty("visibility", "hidden"),
+        );
+      });
+
+      const cleanupHideThumb = () => {
+        if (animationType !== "zoom") return;
+
+        compact([thumbEl, findBlurOverlayContainer(thumbEl)]).forEach((el) =>
+          el.style.removeProperty("visibility"),
+        );
+      };
+
+      instance.on("closingAnimationEnd", cleanupHideThumb);
+
       instance.on("tapAction", () => {
         if (currZoomLevel !== zoomLevel.min) {
-          instance.zoomTo(zoomLevel.min, undefined, 300);
+          instance.pswp?.zoomTo(zoomLevel.min, undefined, 300);
           currZoomLevel = zoomLevel.min;
 
           // queueMicrotask, otherwise will be overwritten by internal photoswipe ui toggle
@@ -189,9 +218,13 @@ export default function GalleryProvider({ children }: GalleryProviderProps) {
 
       function onZoomChange() {
         if (currZoomLevel <= zoomLevel.min) {
-          instance.gestures.pswp.element?.classList.add("pswp--ui-visible");
+          instance.pswp?.gestures.pswp.element?.classList.add(
+            "pswp--ui-visible",
+          );
         } else {
-          instance.gestures.pswp.element?.classList.remove("pswp--ui-visible");
+          instance.pswp?.gestures.pswp.element?.classList.remove(
+            "pswp--ui-visible",
+          );
         }
       }
 
@@ -204,27 +237,53 @@ export default function GalleryProvider({ children }: GalleryProviderProps) {
       });
 
       instance.on("openingAnimationEnd", () => {
+        preventControlsIfNeeded();
+
         if (!post) return;
 
         dispatch(setPostRead(post.post.id));
       });
 
       instance.on("openingAnimationStart", () => {
+        preventControlsIfNeeded();
+
         if (isNative()) StatusBar.hide();
       });
+
+      instance.on("imageClickAction", (e) => {
+        const showingControls =
+          instance.pswp?.gestures.pswp.element?.classList.contains(
+            "pswp--ui-visible",
+          );
+
+        if (!showingControls && currZoomLevel === zoomLevel.initial) {
+          instance.pswp?.gestures.pswp.element?.classList.add(
+            "pswp--ui-visible",
+          );
+          e.preventDefault();
+        }
+      });
+
+      function preventControlsIfNeeded() {
+        if (showControlsOnOpenRef.current) return;
+
+        queueMicrotask(() => {
+          instance.pswp?.gestures.pswp.element?.classList.remove(
+            "pswp--ui-visible",
+          );
+        });
+      }
 
       instance.on("close", () => {
         if (isNative()) StatusBar.show();
       });
 
-      instance.on("closingAnimationEnd", () => {
-        setPost(undefined);
-      });
-
       instance.on("uiRegister", function () {
-        instance.ui?.registerElement({
+        instance.pswp?.ui?.registerElement({
           appendTo: "root",
           onInit: (el) => {
+            preventControlsIfNeeded();
+
             setActionContainer(el);
           },
         });
@@ -305,13 +364,16 @@ export default function GalleryProvider({ children }: GalleryProviderProps) {
         }
 
         if (instance !== null) {
-          instance.close();
+          instance.pswp?.close();
         }
       };
 
       window.addEventListener("popstate", closeGalleryOnHistoryPopState);
 
       instance.on("destroy", () => {
+        cleanupHideThumb();
+        setPost(undefined);
+
         if (galleryHashEnabled) {
           window.removeEventListener("popstate", closeGalleryOnHistoryPopState);
 
@@ -326,7 +388,7 @@ export default function GalleryProvider({ children }: GalleryProviderProps) {
       // Android back button logic end
       // -----------------------------
 
-      instance.init();
+      instance.loadAndOpen(0);
       lightboxRef.current = instance;
     },
     [dispatch],
@@ -340,10 +402,17 @@ export default function GalleryProvider({ children }: GalleryProviderProps) {
         createPortal(
           post ? (
             thumbElRef.current && (
-              <GalleryPostActions post={post} imgSrc={imgSrcRef.current} />
+              <GalleryPostActions
+                post={post}
+                imgSrc={imgSrcRef.current}
+                alt={getAlt(thumbElRef.current)}
+              />
             )
           ) : (
-            <ImageMoreActions imgSrc={imgSrcRef.current} />
+            <ImageMoreActions
+              imgSrc={imgSrcRef.current}
+              alt={getAlt(thumbElRef.current)}
+            />
           ),
           actionContainer,
         )}
@@ -359,4 +428,14 @@ function getBaseUrl(): string {
 
 function getHashValue(): string {
   return window.location.hash.substring(1);
+}
+
+function getAlt(
+  thumbEl: HTMLImageElement | HTMLCanvasElement | undefined,
+): string | undefined {
+  if (!thumbEl) return;
+
+  if (thumbEl instanceof HTMLImageElement) return thumbEl.alt;
+
+  return thumbEl.getAttribute("aria-label") ?? undefined;
 }

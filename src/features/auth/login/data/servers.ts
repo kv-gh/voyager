@@ -1,4 +1,4 @@
-import { concat, uniq } from "lodash";
+import { uniq } from "es-toolkit";
 
 /**
  * 🚨 Want to add a server to this list?
@@ -25,7 +25,7 @@ export const SERVERS_BY_CATEGORY = {
     "endlesstalk.org",
   ],
   regional: [
-    "feddit.de",
+    "feddit.org",
     "lemmy.ca",
     "aussie.zone",
     "feddit.nl",
@@ -33,25 +33,20 @@ export const SERVERS_BY_CATEGORY = {
     "feddit.it",
     "lemmy.eco.br",
     "szmer.info",
-    "feddit.ch",
     "jlai.lu",
     "feddit.dk",
     "lemmy.nz",
     "feddit.nu",
     "feddit.cl",
     "lemmy.pt",
-    "dmv.social",
     "suppo.fi",
     "yall.theatl.social",
-    "feddit.ro",
     "baraza.africa",
     "tucson.social",
     "real.lemmy.fan",
     "lemy.nl",
     "lemmy.eus",
     "dubvee.org",
-    "lemmy.id",
-    "lemmy.bleh.au",
     "feddit.uk",
   ],
   games: [
@@ -61,7 +56,6 @@ export const SERVERS_BY_CATEGORY = {
     "dormi.zone",
     "eviltoast.org",
     "preserve.games",
-    "derpzilla.net",
   ],
   tech: [
     "futurology.today",
@@ -71,11 +65,8 @@ export const SERVERS_BY_CATEGORY = {
     "eviltoast.org",
     "lemmy.kde.social",
     "lemmy.sdf.org",
-    "lemmyhub.com",
     "linux.community",
     "infosec.pub",
-    "iusearchlinux.fyi",
-    "derpzilla.net",
     "lemdro.id",
   ],
   niche: [
@@ -87,24 +78,18 @@ export const SERVERS_BY_CATEGORY = {
     "lemmy.radio",
     "futurology.today",
     "adultswim.fan",
-    "lemmy.radio",
-    "psychedelia.ink",
     "ani.social",
+    "vegantheoryclub.org",
+    "lemmy.vg",
   ],
-  activism: [
-    "rblind.com",
-    "badatbeing.social",
-    "beehaw.org",
-    "sirpnk.net",
-    "merv.news",
-  ],
-  lgbt: ["femboys.bar", "transfem.space", "lemmy.blahaj.zone"],
+  activism: ["rblind.com", "badatbeing.social", "slrpnk.net"],
+  lgbt: ["lemmy.blahaj.zone"],
   academia: ["mander.xyz", "literature.cafe", "futurology.today"],
   furry: ["pawb.social", "yiffit.net"],
 };
 
 export const WHITELISTED_SERVERS = uniq(
-  concat(...Object.values(SERVERS_BY_CATEGORY)),
+  Object.values(SERVERS_BY_CATEGORY).flat(),
 );
 
 const ADDITIONAL_LOGIN_INSTANCES = [
@@ -112,6 +97,8 @@ const ADDITIONAL_LOGIN_INSTANCES = [
   "lemmygrad.ml",
   "lemmynsfw.com",
   "hexbear.net",
+  "vger.social",
+  "lemmy.myserv.one",
 ];
 
 export const LOGIN_SERVERS = uniq([

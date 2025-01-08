@@ -1,56 +1,29 @@
-import { styled } from "@linaria/react";
-import { mergeRefs } from "react-merge-refs";
-import TextareaAutosizedForOnScreenKeyboard from "../../TextareaAutosizedForOnScreenKeyboard";
-import MarkdownToolbar, {
-  TOOLBAR_HEIGHT,
-  TOOLBAR_TARGET_ID,
-} from "./MarkdownToolbar";
-import useKeyboardOpen from "../../../../helpers/useKeyboardOpen";
+import { useMergedRef } from "@mantine/hooks";
 import {
   ClipboardEvent,
   Dispatch,
   DragEvent,
+  KeyboardEvent,
   SetStateAction,
-  forwardRef,
   useEffect,
   useRef,
 } from "react";
-import { preventModalSwipeOnTextSelection } from "../../../../helpers/ionic";
-import useTextRecovery from "../../../../helpers/useTextRecovery";
+
+import { cx } from "#/helpers/css";
+import { preventModalSwipeOnTextSelection } from "#/helpers/ionic";
+import { htmlToMarkdown } from "#/helpers/markdown";
+import useKeyboardOpen from "#/helpers/useKeyboardOpen";
+import useTextRecovery from "#/helpers/useTextRecovery";
+
+import TextareaAutosizedForOnScreenKeyboard from "../../TextareaAutosizedForOnScreenKeyboard";
+import MarkdownToolbar, { TOOLBAR_TARGET_ID } from "./MarkdownToolbar";
+import useEditorHelpers from "./useEditorHelpers";
 import useUploadImage from "./useUploadImage";
-import { insert } from "../../../../helpers/string";
 
-export const Container = styled.div<{ keyboardOpen: boolean }>`
-  min-height: 100%;
+import styles from "./Editor.module.css";
 
-  display: flex;
-  flex-direction: column;
-
-  padding-bottom: ${TOOLBAR_HEIGHT};
-
-  @media screen and (max-width: 767px) {
-    padding-bottom: ${({ keyboardOpen }) =>
-      keyboardOpen
-        ? TOOLBAR_HEIGHT
-        : `calc(${TOOLBAR_HEIGHT} + var(--ion-safe-area-bottom, env(safe-area-inset-bottom)))`};
-  }
-`;
-
-export const Textarea = styled(TextareaAutosizedForOnScreenKeyboard)`
-  border: 0;
-  background: none;
-  resize: none;
-  outline: 0;
-  padding: 1rem;
-
-  min-height: 200px;
-
-  flex: 1 0 auto;
-
-  html.ios:not(.theme-dark) & {
-    background: var(--ion-item-background);
-  }
-`;
+const ORDERED_LIST_REGEX = /^(\d)\. /;
+const UNORDERED_LIST_REGEX = /^(-|\*|\+) /;
 
 export interface EditorProps {
   text: string;
@@ -60,16 +33,25 @@ export interface EditorProps {
   onDismiss?: () => void;
 
   children?: React.ReactNode;
+
+  ref?: React.RefObject<HTMLTextAreaElement>;
 }
 
-export default forwardRef<HTMLTextAreaElement, EditorProps>(function Editor(
-  { text, setText, children, onSubmit, onDismiss, canRecoverText = true },
+export default function Editor({
+  text,
+  setText,
+  children,
+  onSubmit,
+  onDismiss,
+  canRecoverText = true,
   ref,
-) {
+}: EditorProps) {
   const keyboardOpen = useKeyboardOpen();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { uploadImage, jsx } = useUploadImage();
+  const { insertBlock } = useEditorHelpers(textareaRef);
+
+  const { uploadImage, jsx: uploadImageJsx } = useUploadImage();
 
   useTextRecovery(text, setText, !canRecoverText);
 
@@ -78,11 +60,34 @@ export default forwardRef<HTMLTextAreaElement, EditorProps>(function Editor(
 
     // iOS safari native has race sometimes
     setTimeout(() => {
-      textareaRef.current?.focus({ preventScroll: true });
+      if (!textareaRef.current) return;
+
+      textareaRef.current.focus({ preventScroll: true });
+
+      // Place cursor at end
+      const len = textareaRef.current.value.length;
+      textareaRef.current?.setSelectionRange(len, len);
     }, 100);
   }, []);
 
   async function onPaste(e: ClipboardEvent) {
+    const html = e.clipboardData.getData("text/html");
+
+    if (html) {
+      e.preventDefault();
+
+      let toInsert;
+
+      try {
+        toInsert = await htmlToMarkdown(html);
+      } catch (_) {
+        toInsert = e.clipboardData.getData("Text");
+        console.error("Parse error", e);
+      }
+
+      document.execCommand("insertText", false, toInsert);
+    }
+
     const image = e.clipboardData.files?.[0];
 
     if (!image) return;
@@ -103,30 +108,77 @@ export default forwardRef<HTMLTextAreaElement, EditorProps>(function Editor(
   async function onReceivedImage(image: File) {
     const markdown = await uploadImage(image);
 
-    const position = textareaRef.current?.selectionStart ?? 0;
-
-    setText((text) => insert(text, position, markdown));
-
     textareaRef.current?.focus();
-
-    setTimeout(() => {
-      const location = position + markdown.length;
-
-      textareaRef.current?.setSelectionRange(location, location);
-    });
+    insertBlock(markdown);
   }
 
   async function onDragOver(event: DragEvent) {
     event.preventDefault();
   }
 
+  async function autocompleteListIfNeeded(e: KeyboardEvent) {
+    if (
+      !textareaRef.current ||
+      textareaRef.current.selectionStart !== textareaRef.current.selectionStart
+    )
+      return;
+
+    const currentText = textareaRef.current.value.slice(
+      0,
+      textareaRef.current.selectionStart,
+    ); // -1: already hit enter
+
+    const lastNewlineIndex = currentText.lastIndexOf("\n") ?? 0;
+
+    const lastLine = currentText.slice(
+      lastNewlineIndex + 1,
+      currentText.length,
+    );
+
+    const orderedMatch = lastLine.match(ORDERED_LIST_REGEX);
+    if (orderedMatch?.[1]) {
+      const listNumber = +orderedMatch[1];
+      if (listNumber >= 9) return; // only support up to 9 items for now to avoid annoying autocomplete
+
+      // if pressing <enter> on empty list item, bail and remove empty item
+      if (orderedMatch[0] === lastLine) {
+        textareaRef.current.setSelectionRange(
+          textareaRef.current.selectionStart - orderedMatch[0].length,
+          textareaRef.current.selectionStart,
+        );
+        return;
+      }
+
+      e.preventDefault();
+      document.execCommand("insertText", false, `\n${listNumber + 1}. `);
+    }
+
+    const unorderedMatch = lastLine.match(UNORDERED_LIST_REGEX);
+    if (unorderedMatch?.[1]) {
+      // if pressing <enter> on empty list item, bail and remove empty item
+      if (unorderedMatch[0] === lastLine) {
+        textareaRef.current.setSelectionRange(
+          textareaRef.current.selectionStart - unorderedMatch[0].length,
+          textareaRef.current.selectionStart,
+        );
+        return;
+      }
+
+      e.preventDefault();
+      document.execCommand("insertText", false, `\n${unorderedMatch?.[1]} `);
+    }
+  }
+
   return (
     <>
-      {jsx}
-      <Container keyboardOpen={keyboardOpen}>
-        <Textarea
+      {uploadImageJsx}
+      <div
+        className={cx(styles.container, keyboardOpen && styles.keyboardOpen)}
+      >
+        <TextareaAutosizedForOnScreenKeyboard
           {...preventModalSwipeOnTextSelection}
-          ref={mergeRefs([textareaRef, ref])}
+          className={styles.textarea}
+          ref={useMergedRef(textareaRef, ref)}
           value={text}
           onChange={(e) => setText(e.target.value)}
           autoFocus
@@ -135,11 +187,18 @@ export default forwardRef<HTMLTextAreaElement, EditorProps>(function Editor(
           spellCheck
           id={TOOLBAR_TARGET_ID}
           onKeyDown={(e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-              onSubmit?.();
-            }
-            if (e.key === "Escape") {
-              onDismiss?.();
+            switch (e.key) {
+              case "Enter": {
+                if (e.ctrlKey || e.metaKey) {
+                  onSubmit?.();
+                } else {
+                  autocompleteListIfNeeded(e);
+                }
+                break;
+              }
+              case "Escape":
+                onDismiss?.();
+                break;
             }
           }}
           onPaste={onPaste}
@@ -147,15 +206,14 @@ export default forwardRef<HTMLTextAreaElement, EditorProps>(function Editor(
           onDragOver={onDragOver}
         />
         {children}
-      </Container>
+      </div>
 
       <MarkdownToolbar
         slot="fixed"
         type="comment"
         text={text}
-        setText={setText}
         textareaRef={textareaRef}
       />
     </>
   );
-});
+}

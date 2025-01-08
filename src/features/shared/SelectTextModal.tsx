@@ -1,52 +1,27 @@
 import {
-  IonToolbar,
-  IonTitle,
-  IonButtons,
   IonButton,
+  IonButtons,
   IonContent,
+  IonIcon,
   IonModal,
+  IonTitle,
+  IonToolbar,
 } from "@ionic/react";
-import { Centered } from "../auth/login/LoginNav";
-import TextareaAutosize from "react-textarea-autosize";
+import { copyOutline } from "ionicons/icons";
 import { useRef } from "react";
-import { isTouchDevice } from "../../helpers/device";
-import { preventModalSwipeOnTextSelection } from "../../helpers/ionic";
-import { styled } from "@linaria/react";
+import TextareaAutosize from "react-textarea-autosize";
+
+import { isTouchDevice } from "#/helpers/device";
+import { preventModalSwipeOnTextSelection } from "#/helpers/ionic";
+import {
+  copyClipboardFailed,
+  copyClipboardSuccess,
+} from "#/helpers/toastMessages";
+import useAppToast from "#/helpers/useAppToast";
+
 import AppHeader from "./AppHeader";
 
-const Container = styled.div`
-  min-height: 100%;
-
-  display: flex;
-
-  html.ios:not(.theme-dark) & {
-    background: var(--ion-item-background);
-  }
-`;
-
-const sharedSelectStyles = `
-  padding: 8px;
-  width: calc(100% - 16px);
-
-  user-select: text;
-
-  margin-bottom: var(--ion-safe-area-bottom, env(safe-area-inset-bottom));
-`;
-
-const InvisibleTextarea = styled(TextareaAutosize)`
-  all: unset;
-  white-space: pre-wrap;
-  width: 100%;
-
-  ${sharedSelectStyles}
-`;
-
-const Selectable = styled.div`
-  user-select: text;
-  white-space: pre-wrap;
-
-  ${sharedSelectStyles}
-`;
+import styles from "./SelectTextModal.module.css";
 
 interface SelectTextProps {
   text: string;
@@ -63,6 +38,18 @@ export default function SelectTextModal({
 }: SelectTextProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const firstSelectRef = useRef(true);
+  const presentToast = useAppToast();
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (error) {
+      presentToast(copyClipboardFailed);
+      throw error;
+    }
+
+    presentToast(copyClipboardSuccess);
+  }
 
   return (
     <IonModal
@@ -77,9 +64,12 @@ export default function SelectTextModal({
     >
       <AppHeader>
         <IonToolbar>
-          <IonTitle>
-            <Centered>Select Text</Centered>
-          </IonTitle>
+          <IonButtons slot="start">
+            <IonButton onClick={copy}>
+              <IonIcon icon={copyOutline} />
+            </IonButton>
+          </IonButtons>
+          <IonTitle>Select Text</IonTitle>
           <IonButtons slot="end">
             <IonButton
               onClick={() => {
@@ -92,13 +82,17 @@ export default function SelectTextModal({
         </IonToolbar>
       </AppHeader>
       <IonContent>
-        <Container>
+        <div className={styles.container}>
           {touch ? (
-            <Selectable {...preventModalSwipeOnTextSelection}>
+            <div
+              {...preventModalSwipeOnTextSelection}
+              className={styles.selectable}
+            >
               {text}
-            </Selectable>
+            </div>
           ) : (
-            <InvisibleTextarea
+            <TextareaAutosize
+              className={styles.invisibleTextarea}
               ref={textareaRef}
               onMouseMove={(e) => e.stopPropagation()}
               onClick={() => {
@@ -119,7 +113,7 @@ export default function SelectTextModal({
               value={text}
             />
           )}
-        </Container>
+        </div>
       </IonContent>
     </IonModal>
   );

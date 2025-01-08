@@ -1,4 +1,5 @@
 import {
+  IonItem,
   IonItemOption,
   IonItemOptions,
   IonItemSliding,
@@ -6,11 +7,13 @@ import {
   IonList,
   useIonAlert,
 } from "@ionic/react";
-import { InsetIonItem } from "../../../routes/pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../store";
-import { ListHeader } from "../shared/formatting";
+import { uniq, without } from "es-toolkit";
+
+import { ListHeader } from "#/features/settings/shared/formatting";
+import { RemoveItemButton } from "#/features/shared/ListEditor";
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { updateFilteredKeywords } from "../settingsSlice";
-import { uniq, without } from "lodash";
 
 export default function FilteredKeywords() {
   const [presentAlert] = useIonAlert();
@@ -67,16 +70,17 @@ export default function FilteredKeywords() {
                 Unfilter
               </IonItemOption>
             </IonItemOptions>
-            <InsetIonItem>
+            <IonItem>
+              <RemoveItemButton />
               <IonLabel>{keyword}</IonLabel>
-            </InsetIonItem>
+            </IonItem>
           </IonItemSliding>
         ))}
 
         <IonItemSliding>
-          <InsetIonItem onClick={add} button detail={false}>
+          <IonItem onClick={add} button detail={false}>
             <IonLabel color="primary">Add Keyword</IonLabel>
-          </InsetIonItem>
+          </IonItem>
         </IonItemSliding>
       </IonList>
     </>

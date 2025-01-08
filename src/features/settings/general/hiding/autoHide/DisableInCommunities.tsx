@@ -1,6 +1,7 @@
-import { IonToggle } from "@ionic/react";
-import { InsetIonItem } from "../../../../../routes/pages/profile/ProfileFeedItemsPage";
-import { useAppDispatch, useAppSelector } from "../../../../../store";
+import { IonItem, IonToggle } from "@ionic/react";
+
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import { setDisableAutoHideInCommunities } from "../../../settingsSlice";
 
 export default function DisableInCommunities() {
@@ -10,7 +11,7 @@ export default function DisableInCommunities() {
   );
 
   return (
-    <InsetIonItem>
+    <IonItem>
       <IonToggle
         checked={disableAutoHideInCommunities}
         onIonChange={(e) =>
@@ -19,6 +20,6 @@ export default function DisableInCommunities() {
       >
         Disable in Communities
       </IonToggle>
-    </InsetIonItem>
+    </IonItem>
   );
 }

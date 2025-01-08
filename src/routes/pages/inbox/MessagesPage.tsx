@@ -9,62 +9,66 @@ import {
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
-import { useAppDispatch, useAppSelector } from "../../../store";
-import { useEffect, useMemo, useRef, useState } from "react";
-import MarkAllAsReadButton from "./MarkAllAsReadButton";
-import { groupBy, sortBy } from "lodash";
-import { jwtPayloadSelector } from "../../../features/auth/authSelectors";
-import ConversationItem from "../../../features/inbox/messages/ConversationItem";
-import { MaxWidthContainer } from "../../../features/shared/AppContent";
-import { syncMessages } from "../../../features/inbox/inboxSlice";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { useSetActivePage } from "#/features/auth/AppContext";
+import { jwtPayloadSelector } from "#/features/auth/authSelectors";
+import {
+  conversationsByPersonIdSelector,
+  syncMessages,
+} from "#/features/inbox/inboxSlice";
+import ConversationItem from "#/features/inbox/messages/ConversationItem";
+import { MaxWidthContainer } from "#/features/shared/AppContent";
+import AppHeader from "#/features/shared/AppHeader";
+import { CenteredSpinner } from "#/features/shared/CenteredSpinner";
+import { useAppDispatch, useAppSelector } from "#/store";
+
 import ComposeButton from "./ComposeButton";
-import { CenteredSpinner } from "../posts/PostPage";
-import { useSetActivePage } from "../../../features/auth/AppContext";
-import AppHeader from "../../../features/shared/AppHeader";
+import MarkAllAsReadButton from "./MarkAllAsReadButton";
 
 export default function MessagesPage() {
   const pageRef = useRef<HTMLElement>(null);
   const dispatch = useAppDispatch();
   const messages = useAppSelector((state) => state.inbox.messages);
   const jwtPayload = useAppSelector(jwtPayloadSelector);
-  const myUserId = useAppSelector(
-    (state) =>
-      state.site.response?.my_user?.local_user_view?.local_user?.person_id,
-  );
   const [loading, setLoading] = useState(false);
+  const conversationsByPersonId = useAppSelector(
+    conversationsByPersonIdSelector,
+  );
+
+  const groupedConversations = useMemo(
+    () => Object.values(conversationsByPersonId),
+    [conversationsByPersonId],
+  );
 
   useSetActivePage(pageRef);
 
-  useEffect(() => {
-    fetchItems();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, jwtPayload]);
-
-  async function fetchItems() {
+  const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
       await dispatch(syncMessages());
     } finally {
       setLoading(false);
     }
-  }
+  }, [dispatch]);
 
-  const messagesByCreator = useMemo(
-    () =>
-      sortBy(
-        Object.values(
-          groupBy(messages, (m) =>
-            m.private_message.creator_id === myUserId
-              ? m.private_message.recipient_id
-              : m.private_message.creator_id,
-          ),
-        ).map((messages) =>
-          sortBy(messages, (m) => -Date.parse(m.private_message.published)),
-        ),
-        (group) => -Date.parse(group[0]!.private_message.published),
-      ),
-    [messages, myUserId],
-  );
+  useEffect(() => {
+    fetchItems();
+  }, [dispatch, jwtPayload, fetchItems]);
+
+  const content = (() => {
+    if (!messages.length && loading) return <CenteredSpinner />;
+
+    return (
+      <MaxWidthContainer>
+        <IonList>
+          {groupedConversations.map((conversationMessages, index) => (
+            <ConversationItem key={index} messages={conversationMessages} />
+          ))}
+        </IonList>
+      </MaxWidthContainer>
+    );
+  })();
 
   return (
     <IonPage ref={pageRef}>
@@ -95,17 +99,8 @@ export default function MessagesPage() {
         >
           <IonRefresherContent />
         </IonRefresher>
-        {(!messages.length && loading) || !myUserId ? (
-          <CenteredSpinner />
-        ) : (
-          <MaxWidthContainer>
-            <IonList>
-              {messagesByCreator.map((conversationMessages, index) => (
-                <ConversationItem key={index} messages={conversationMessages} />
-              ))}
-            </IonList>
-          </MaxWidthContainer>
-        )}
+
+        {content}
       </IonContent>
     </IonPage>
   );

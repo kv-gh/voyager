@@ -1,7 +1,4 @@
-import { styled } from "@linaria/react";
-import FloatingDialog from "../../../../helpers/FloatingDialog";
-import Crosspost from "../Crosspost";
-import { CommunityView, PostView } from "lemmy-js-client";
+import { StatusBar } from "@capacitor/status-bar";
 import {
   IonButton,
   IonInput,
@@ -11,57 +8,26 @@ import {
   IonText,
   useIonModal,
 } from "@ionic/react";
+import { CommunityView, PostView } from "lemmy-js-client";
 import { useContext, useEffect, useState } from "react";
-import CommunitySelectorModal from "../../../shared/selectorModals/CommunitySelectorModal";
-import { PageContext } from "../../../auth/PageContext";
-import { buildCrosspostBody, getHandle } from "../../../../helpers/lemmy";
-import useClient from "../../../../helpers/useClient";
-import { useBuildGeneralBrowseLink } from "../../../../helpers/routes";
-import { buildPostLink } from "../../../../helpers/appLinkBuilder";
+
+import { PageContext } from "#/features/auth/PageContext";
+import CommunitySelectorModal from "#/features/shared/selectorModals/CommunitySelectorModal";
+import { buildPostLink } from "#/helpers/appLinkBuilder";
+import { isNative } from "#/helpers/device";
+import FloatingDialog from "#/helpers/FloatingDialog";
+import { buildCrosspostBody, getHandle } from "#/helpers/lemmy";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
+import { crosspostFailed, crosspostSuccess } from "#/helpers/toastMessages";
+import useAppToast from "#/helpers/useAppToast";
+import useClient from "#/helpers/useClient";
+import { useOptimizedIonRouter } from "#/helpers/useOptimizedIonRouter";
+import { useAppDispatch } from "#/store";
+
 import { receivedPosts } from "../../postSlice";
-import { useOptimizedIonRouter } from "../../../../helpers/useOptimizedIonRouter";
-import { useAppDispatch } from "../../../../store";
-import useAppToast from "../../../../helpers/useAppToast";
-import { checkmark } from "ionicons/icons";
-import { StatusBar } from "@capacitor/status-bar";
-import { isNative } from "../../../../helpers/device";
+import Crosspost from "../Crosspost";
 
-const Title = styled.div`
-  font-size: 1.1em;
-  line-height: 1rem;
-  font-weight: bold;
-`;
-
-const PillIonInput = styled(IonInput)`
-  --padding-start: 12px;
-  --padding-end: 12px;
-
-  border-radius: 0.5rem;
-  background: var(--ion-item-background, var(--ion-background-color, #fff));
-`;
-
-const ReadonlyCrosspost = styled(Crosspost)`
-  pointer-events: none;
-
-  background: var(--ion-item-background, var(--ion-background-color, #fff));
-`;
-
-const PillIonButton = styled(IonButton)`
-  width: 100%;
-  --border-radius: 0.5rem;
-`;
-
-const PillIonList = styled(IonList)`
-  width: 100%;
-
-  && {
-    margin: 0;
-  }
-`;
-
-const LoadingIonSpinner = styled(IonSpinner)`
-  margin-left: 16px;
-`;
+import styles from "./CreateCrosspostDialog.module.css";
 
 interface CreateCrosspostDialogProps {
   onDismiss: () => void;
@@ -115,15 +81,11 @@ export default function CreateCrosspostDialog({
         name: title,
         url: post.post.url,
         nsfw: post.post.nsfw,
-        body: buildCrosspostBody(post.post),
+        body: buildCrosspostBody(post.post, title !== post.post.name),
         community_id: community.community.id,
       });
     } catch (error) {
-      presentToast({
-        message: "Failed to create crosspost",
-        color: "danger",
-        centerText: true,
-      });
+      presentToast(crosspostFailed);
       throw error;
     } finally {
       setLoading(false);
@@ -142,25 +104,23 @@ export default function CreateCrosspostDialog({
 
     onDismiss();
 
-    presentToast({
-      message: "Crossposted!",
-      color: "primary",
-      position: "top",
-      centerText: true,
-      fullscreen: true,
-      icon: checkmark,
-    });
+    presentToast(crosspostSuccess);
   }
 
   return (
     <FloatingDialog onDismiss={onDismiss}>
-      <Title>Crosspost</Title>
+      <div className={styles.title}>Crosspost</div>
 
-      <PillIonInput
+      <IonInput
+        className={styles.pillIonInput}
         aria-label="Title"
         placeholder="Title"
         value={title}
         onIonInput={(e) => setTitle(e.detail.value || "")}
+        inputMode="text"
+        autocapitalize="on"
+        autocorrect="on"
+        spellCheck
         // clearInput // TODO add once below bug fixed
       >
         {/* https://github.com/ionic-team/ionic-framework/issues/28855 */}
@@ -178,29 +138,35 @@ export default function CreateCrosspostDialog({
             </IonButton>
           )}
         </div>
-      </PillIonInput>
-      <ReadonlyCrosspost post={post} url={post.post.ap_id} />
-      <PillIonList inset>
+      </IonInput>
+      <Crosspost
+        className={styles.readonlyCrosspost}
+        post={post}
+        url={post.post.ap_id}
+      />
+      <IonList inset className={styles.pillIonList}>
         <IonItem
           onClick={() => presentCommunitySelectorModal({ cssClass: "small" })}
         >
-          Community
-          <IonText
-            slot="end"
-            color={!community ? "medium" : undefined}
-            className="ion-text-end"
-          >
-            {community ? getHandle(community.community) : "None"}
-          </IonText>
+          <div className={styles.communitySelectorContents}>
+            <div>Community</div>
+            <IonText
+              color={!community ? "medium" : undefined}
+              className={styles.ellipsis}
+            >
+              {community ? getHandle(community.community) : "None"}
+            </IonText>
+          </div>
         </IonItem>
-      </PillIonList>
-      <PillIonButton
+      </IonList>
+      <IonButton
+        className={styles.pillIonButton}
         color={canPost ? "primary" : "dark"}
         disabled={!canPost || loading}
         onClick={submit}
       >
-        Crosspost{loading && <LoadingIonSpinner />}
-      </PillIonButton>
+        Crosspost{loading && <IonSpinner className="ion-margin-start" />}
+      </IonButton>
     </FloatingDialog>
   );
 }

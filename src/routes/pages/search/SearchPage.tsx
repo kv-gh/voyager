@@ -1,27 +1,37 @@
 import { IonPage, IonSearchbar, IonToolbar } from "@ionic/react";
-import AppContent from "../../../features/shared/AppContent";
-import { createRef, useState } from "react";
-import TrendingCommunities from "../../../features/search/TrendingCommunities";
-import SearchOptions from "../../../features/search/SearchOptions";
-import useLemmyUrlHandler from "../../../features/shared/useLemmyUrlHandler";
-import { useOptimizedIonRouter } from "../../../helpers/useOptimizedIonRouter";
-import { css } from "@linaria/core";
-import AppHeader from "../../../features/shared/AppHeader";
+import { createRef, useRef, useState } from "react";
 
-const searchBarRef = createRef<HTMLIonSearchbarElement>();
+import { useSetActivePage } from "#/features/auth/AppContext";
+import EmptySearch from "#/features/search/EmptySearch";
+import SearchOptions from "#/features/search/SearchOptions";
+import AppContent from "#/features/shared/AppContent";
+import AppHeader from "#/features/shared/AppHeader";
+import useLemmyUrlHandler from "#/features/shared/useLemmyUrlHandler";
+import { findCurrentPage } from "#/helpers/ionic";
+import { useOptimizedIonRouter } from "#/helpers/useOptimizedIonRouter";
+
+import styles from "./SearchPage.module.css";
 
 /**
  * Focuses on the search bar input element.
  */
-export const focusSearchBar = () => searchBarRef.current?.setFocus();
+export const focusSearchBar = () =>
+  findCurrentPage()
+    ?.closest(".ion-page")
+    ?.querySelector<HTMLIonSearchbarElement>(`.${styles.searchbar}`)
+    ?.setFocus();
 
 export default function SearchPage() {
+  const pageRef = useRef<HTMLElement>(null);
   const [search, setSearch] = useState("");
   const router = useOptimizedIonRouter();
   const { redirectToLemmyObjectIfNeeded } = useLemmyUrlHandler();
+  const searchBarRef = createRef<HTMLIonSearchbarElement>();
+
+  useSetActivePage(pageRef);
 
   return (
-    <IonPage className="grey-bg">
+    <IonPage ref={pageRef} className="grey-bg">
       <AppHeader>
         <IonToolbar>
           <form
@@ -32,7 +42,10 @@ export default function SearchPage() {
 
               const potentialUrl = search.trim();
 
-              if (await redirectToLemmyObjectIfNeeded(potentialUrl)) return;
+              const redirectResult =
+                await redirectToLemmyObjectIfNeeded(potentialUrl);
+
+              if (redirectResult === "success") return;
 
               const el = await searchBarRef.current?.getInputElement();
               el?.blur();
@@ -42,12 +55,10 @@ export default function SearchPage() {
             <IonSearchbar
               ref={searchBarRef}
               placeholder="Search posts, communities, users"
+              autocapitalize="on"
               showCancelButton={search ? "always" : "focus"}
               showClearButton={search ? "always" : "never"}
-              className={css`
-                padding-top: 0 !important;
-                padding-bottom: 0 !important;
-              `}
+              className={styles.searchbar}
               value={search}
               onIonInput={(e) => setSearch(e.detail.value ?? "")}
               enterkeyhint="search"
@@ -55,8 +66,8 @@ export default function SearchPage() {
           </form>
         </IonToolbar>
       </AppHeader>
-      <AppContent scrollY={!search}>
-        {!search ? <TrendingCommunities /> : <SearchOptions search={search} />}
+      <AppContent scrollY>
+        {!search ? <EmptySearch /> : <SearchOptions search={search} />}
       </AppContent>
     </IonPage>
   );

@@ -1,3 +1,5 @@
+import { KeyboardEvent } from "react";
+
 import { ua } from "./device";
 
 export const useScrollIntoViewWorkaround = ua.getEngine().name === "WebKit";
@@ -123,4 +125,24 @@ export function getOffsetTop(
   }
 
   return cumulative;
+}
+
+export function getSelectionHtml(selection: Selection): string {
+  let html = "";
+
+  if (selection.rangeCount) {
+    const container = document.createElement("div");
+    for (let i = 0, len = selection.rangeCount; i < len; ++i) {
+      container.appendChild(selection.getRangeAt(i).cloneContents());
+    }
+    html = container.innerHTML;
+  }
+
+  return html;
+}
+
+export function blurOnEnter(e: KeyboardEvent) {
+  if (e.key !== "Enter") return;
+
+  if (e.target instanceof HTMLElement) e.target.blur();
 }

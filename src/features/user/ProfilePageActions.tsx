@@ -1,10 +1,12 @@
-import { IonButton, IonIcon, useIonActionSheet } from "@ionic/react";
-import { ellipsisHorizontal, footstepsOutline } from "ionicons/icons";
-import { useBuildGeneralBrowseLink } from "../../helpers/routes";
-import { useOptimizedIonRouter } from "../../helpers/useOptimizedIonRouter";
-import { useAppSelector } from "../../store";
-import { usernameSelector } from "../auth/authSelectors";
-import { compact } from "lodash";
+import { IonButton, useIonActionSheet } from "@ionic/react";
+import { compact } from "es-toolkit";
+import { footstepsOutline } from "ionicons/icons";
+
+import { usernameSelector } from "#/features/auth/authSelectors";
+import HeaderEllipsisIcon from "#/features/shared/HeaderEllipsisIcon";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
+import { useOptimizedIonRouter } from "#/helpers/useOptimizedIonRouter";
+import { useAppSelector } from "#/store";
 
 export default function ProfilePageActions() {
   const router = useOptimizedIonRouter();
@@ -33,8 +35,8 @@ export default function ProfilePageActions() {
   }
 
   return (
-    <IonButton fill="default" onClick={present}>
-      <IonIcon icon={ellipsisHorizontal} color="primary" />
+    <IonButton onClick={present}>
+      <HeaderEllipsisIcon slot="icon-only" />
     </IonButton>
   );
 }

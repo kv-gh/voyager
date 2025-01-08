@@ -21,13 +21,13 @@ A mobile-first Lemmy web client
 </p>
 <p align="center">
   <a href="https://matrix.to/#/#vger.app:matrix.org"><img src="https://img.shields.io/badge/chat-matrix-blue?style=flat-square&logo=matrix" alt="matrix chat"></a>
-  <a href="https://lemmy.world/c/voyagerapp"><img src="https://img.shields.io/lemmy/voyagerapp@lemmy.world?style=flat-square&logo=lemmy&label=lemmy" alt="lemmy community"></a>
+  <a href="https://lemmyverse.link/c/voyagerapp@lemmy.world"><img src="https://img.shields.io/lemmy/voyagerapp@lemmy.world?style=flat-square&logo=lemmy&label=lemmy" alt="lemmy community"></a>
 </p>
 <br/>
 
 <p align="center">
   <a href="https://vger.app/" target="_blank" rel="noopener noreferrer" >
-    <img src="./public/promo.png" alt="Voyager screenshots" width="600" height="auto">
+    <img src="./public/promo.webp" alt="Voyager screenshots" width="800" height="auto">
   </a>
 </p>
 
@@ -72,11 +72,40 @@ Native apps can be great, but we believe in the strengths of the web. Why use a 
 
 ## Deployment
 
-### Official Deployment
+### Ecosystem
 
-The Voyager team maintains a deployment at:
+**For most users,** we recommend the native app available in the stores:
 
-- 🐭 Production: [vger.app](https://vger.app)
+<a href="https://apps.apple.com/us/app/voyager-for-lemmy/id6451429762"><img src="public/badges/ios.svg" height="45"></a>&nbsp;&nbsp;
+<a href="https://play.google.com/store/apps/details?id=app.vger.voyager"><img src="public/badges/play.svg" height="45"></a>&nbsp;&nbsp;<a href="https://f-droid.org/en/packages/app.vger.voyager/"><img src="public/badges/fdroid.png" height="45"></a>
+
+However, if you prefer using the Progressive Web App, there are a number of folks that host it:
+
+| Country          | URL                                                      | Description                                                  | Contact/Privacy                             |
+| ---------------- | -------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------- |
+| 🇺🇸 Virginia, USA | [vger.app](https://vger.app)                             | ✅ Official Voyager PWA instance                             | [➡️](https://vger.social/u/aeharding)       |
+| 🇫🇮 Finland       | [m.lemmy.world](https://m.lemmy.world)                   | Voyager hosted by the mastodon.world team.                   | [➡️](https://mastodon.world/about)          |
+| 🇸🇬 Singapore     | [v.opnxng.com](https://v.opnxng.com)                     | Voyager hosted by Opnxng in Singapore.                       | [➡️](https://about.opnxng.com)              |
+| 🇲🇽 Mexico        | [voyager.nohost.network](https://voyager.nohost.network) | Voyager hosted by Nohost in Mexico.                          | [➡️](https://nohost.network)                |
+| 🇺🇸 USA           | [vger.thesanewriter.com](https://vger.thesanewriter.com) | Voyager hosted by the lemmy.thesanewriter.com team.          | [➡️](https://lemmy.thesanewriter.com/legal) |
+| 🇺🇸 Oregon, USA   | [m.lemmy.today](https://m.lemmy.today)                   | A fast, general purpose instance located in Oregon, USA      | [➡️](https://lemmy.today)                   |
+| 🇫🇷 France        | [v.lemmy.dbzer0.com](https://v.lemmy.dbzer0.com)         | Be Weird, Download a Car, Generate Art, Screw Copyrights     | [➡️](https://lemmy.dbzer0.com)              |
+| ?                | [v.programming.dev](https://v.programming.dev)           | A collection of programming communities                      | [➡️](https://legal.programming.dev)         |
+| 🇺🇸 Oregon, USA   | [v.lemmy.eco.br](https://v.lemmy.eco.br)                 | A fast, general purpose instance located in Oregon, USA      | [➡️](https://lemmy.eco.br)                  |
+| 🇩🇪 Germany       | [v.lemy.lol](https://v.lemy.lol)                         | Long-term, general purpose Lemmy instance.                   | [➡️](https://lemy.lol)                      |
+| 🇵🇹 Portugal      | [voyager.slrpnk.net](https://voyager.slrpnk.net)         | Sustainable future interconnected with nature and community. | [➡️](https://slrpnk.net)                    |
+| ?                | [app.thelemmy.club](https://app.thelemmy.club)           | A general Lemmy instance for all!                            | [➡️](https://thelemmy.club)                 |
+| ?                | [m.lemdro.id](https://m.lemdro.id)                       | Fully open source instance with incredible transparency.     | [➡️](https://lemdro.id)                     |
+
+> **Note**: Community deployments are **NOT** maintained by the Voyager team. They may not be synced with Voyager's source code. Please do your own research about the host servers before using them.
+
+### Beta Testing
+
+Voyager maintains a beta track continuously deployed from every commit to [`refs/heads/main`](https://github.com/aeharding/voyager/commits/main)). **The beta build may break at any time.**
+
+- [iOS – Testflight](https://testflight.apple.com/join/nWLw1MBM)
+- [Android – Google Play Open Testing](https://play.google.com/apps/testing/app.vger.voyager)
+- [Web App – beta.vger.app](https://beta.vger.app)
 
 ### Self-Host
 
@@ -109,22 +138,28 @@ Note: The provided Dockerfile creates a container which will eventually run Voya
 
 #### Traditional Deployment
 
-If you want to run a production build without Docker, you can build from source and run with the following commands (change `PORT` to whatever you prefer):
+While Docker makes things easier, Voyager can be hosted by any HTTP server (nginx, apache etc).
 
 ```sh
+# Build from source (Or, download web artifact from Github Releases)
 pnpm install
 pnpm build
-NODE_ENV=production PORT=5106 node server.mjs
+
+# Then, serve ./dist with your favorite HTTP server - nginx, apache etc
+# (make sure 404 goes to index.html)
+# Below is a simple example for dev/testing (not recommended for production):
+npm install --global http-server
+cp dist/index.html dist/404.html # magic file for http-server
+http-server dist
 ```
 
-### Ecosystem
+Optionally, you can serve a custom list of instance(s) in the `/_config` endpoint, with JSON payload of following format:
 
-- 🇫🇮 [m.lemmy.world](https://m.lemmy.world) - Voyager hosted by the mastodon.world team. [Contact/privacy](https://mastodon.world/about)
-- 🇸🇬 [v.opnxng.com](https://v.opnxng.com) - Voyager hosted by Opnxng in Singapore. [Contact/privacy](https://about.opnxng.com)
-- 🇲🇽 [voyager.nohost.network](https://voyager.nohost.network) - Voyager hosted by Nohost in Mexico. [Contact/privacy](https://nohost.network)
-- 🇺🇸 [vger.thesanewriter.com](https://vger.thesanewriter.com) - Voyager hosted by the lemmy.thesanewriter.com team. [Contact/privacy](https://lemmy.thesanewriter.com/legal)
+```json
+{ "customServers": ["lemmy.world", "lemm.ee"] }
+```
 
-> **Note**: Community deployments are **NOT** maintained by the Voyager team. They may not be synced with Voyager's source code. Please do your own research about the host servers before using them.
+For production, serve `index.html` with `Cache-Control: no-cache` and `/assets` with a long cache period (files in assets are immutable)
 
 ## 💖 Sponsors
 

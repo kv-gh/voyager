@@ -1,11 +1,15 @@
+import { lockClosed, lockOpen } from "ionicons/icons";
 import { ModLockPostView } from "lemmy-js-client";
+
+import { buildPostLink } from "#/helpers/appLinkBuilder";
+import { getHandle } from "#/helpers/lemmy";
+
 import { LogEntryData } from "../ModlogItem";
-import { getHandle } from "../../../../helpers/lemmy";
 import { buildBaseData, buildPostMessage } from "./shared";
-import { buildPostLink } from "../../../../helpers/appLinkBuilder";
 
 export default function lockPost(item: ModLockPostView): LogEntryData {
   return {
+    icon: item.mod_lock_post.locked ? lockClosed : lockOpen,
     title: `${item.mod_lock_post.locked ? "Locked" : "Unlocked"} Post`,
     by: item.moderator ? getHandle(item.moderator) : undefined,
     message: buildPostMessage(item.post),

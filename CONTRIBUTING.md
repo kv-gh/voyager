@@ -49,37 +49,35 @@ pnpm run dev
 
 If the feature you're working on is native-only, you can compile and run Voyager in an iOS Simulator or real device.
 
-To build the iOS native app:
+To build the iOS native app, install:
 
-1. Install [Node](https://nodejs.org/en)
-2. Install [Ionic CLI](https://ionicframework.com/docs/cli)
-3. Install [Xcode](https://developer.apple.com/xcode/)
-4. [Cocoapods](https://cocoapods.org/)
+1. [Node](https://nodejs.org)
+2. [Xcode](https://developer.apple.com/xcode/)
+3. [Cocoapods](https://cocoapods.org)
 
-Then, build the project and copy web dependencies over:
+Then, in Voyager's source code directory, build the project:
 
 ```sh
 corepack enable
 pnpm install
-ionic capacitor build ios
+pnpm exec ionic capacitor build ios
 ```
 
-Finally, can run the project with `CMD+R`.
+Xcode should automatically open. You can then run the project with `CMD+R`.
 
 ### Android Native App
 
-To build the Android native app:
+To build the Android native app, install:
 
-1. Install [Node](https://nodejs.org/en)
-2. Install [Ionic CLI](https://ionicframework.com/docs/cli)
-3. Install [Android Studio](https://developer.android.com/studio)
+1. [Node](https://nodejs.org)
+2. [Android Studio](https://developer.android.com/studio)
 
-In Voyager source code directory:
+Then, in Voyager's source code directory, build the project:
 
 ```sh
 corepack enable
 pnpm install
-ionic capacitor build android
+pnpm exec ionic capacitor build android
 ```
 
 Android Studio should open.
@@ -98,16 +96,70 @@ pnpm test
 
 ### 🚀 Releasing
 
-To release a new version:
-
-```sh
-BUILD=123; npx release-it
-```
-
-Make sure the build number is incremental. This is used for F-droid.
-
-Voyager uses [Ionic App Flow](https://ionic.io/appflow) for Apple App Store and Android Play Store builds. Those builds are initiated and monitored by Github Actions, where logs may be inspected.
+Voyager uses Github Actions for Apple App Store and Android Play Store builds, where logs may be inspected.
 
 **Voyager's Android and iOS builds are reproducible**! In fact, [F-droid independently builds Voyager](https://gitlab.com/fdroid/fdroiddata/-/blob/master/metadata/app.vger.voyager.yml) and verifies the same compiled APK is provided in Github Releases.
 
 Note: F-droid and Github Releases binaries are built with `BUILD_FOSS_ONLY=true`. This removes all nonfree dependencies, currently just Google Play in-app purchases.
+
+> [!IMPORTANT]
+> Release tags are detached from main so that CI can commit build metadata for fdroid.
+>
+> You can visualize where release tags have diverged from main like this:
+>
+> ```sh
+> git log --graph --oneline --tags
+> ```
+>
+> To see all commits between a release tag and main, you can use the following (replace `MY_RELEASE_TAG`):
+>
+> ```sh
+> git log main..MY_RELEASE_TAG
+> ```
+>
+> To determine the exact commit where a release tag diverged from main, you can use the following (replace `MY_RELEASE_TAG`):
+>
+> ```sh
+> git rev-parse $(git rev-list --exclude-first-parent-only ^main MY_RELEASE_TAG| tail -1)^
+> ```
+
+#### Start the release process
+
+1. Make sure the version is incremented. Increment in `package.json` and push (if necessary)
+2. Trigger the `release` workflow in Github Actions from the relevant commit
+
+> [!TIP]
+> Shorthand: `pnpm release` (relies on [`gh`](https://cli.github.com))
+
+#### The `release` workflow will:
+
+1. Set the build number to the current Github run number (and detect the version from `package.json`)
+2. Upload `release-data` artifact with trapeze changes and `.env` file
+
+Then, it will fork depending on the `release_behavior` (e.g. building on main or publishing a release):
+
+##### Building on main
+
+1. Dispatch the `build_release` workflow with `is_main_build=true`
+
+##### Publishing a release
+
+2. Commit the `release-data`
+3. Tag the release (e.g. `1.0.0`)
+4. As a side-effect of tagging, trigger the `build_release` workflow
+
+#### The `build_release` workflow will:
+
+1. Build web app — `Voyager-Web-<version>.zip`
+2. Build non-FOSS Google Play Android — **no artifact**
+3. Build iOS artifact — `Voyager-iOS-<version>.ipa`
+4. Build FOSS-only Android — `Voyager-Android-<version>.apk`
+5. Upload to the Apple App Store and Google Play Store
+6. Deploy PWA to [beta.vger.app](https://beta.vger.app) (testing track) or [vger.app](https://vger.app) (release track)
+7. Create a Github Release with the artifacts
+
+#### several_days_later_spongebob_meme.jpg
+
+In a few days, F-droid will scan the repo for new tags and [independently build](https://gitlab.com/fdroid/fdroiddata/-/blob/master/metadata/app.vger.voyager.yml) the FOSS-only Android native app. It will verify reproducibility against Github Releases, and then publish the app.
+
+This is the main reason why each release tags trapeze changes (and build metadata) as a new commit. It also makes it easier for anyone to verify reproducibility.

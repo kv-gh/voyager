@@ -1,29 +1,36 @@
-import { styled } from "@linaria/react";
-import { PostView } from "lemmy-js-client";
-import LargePost from "./large/LargePost";
-import store, { useAppDispatch, useAppSelector } from "../../../store";
-import CompactPost from "./compact/CompactPost";
-import SlidingVote from "../../shared/sliding/SlidingPostVote";
 import { IonItem } from "@ionic/react";
-import { useBuildGeneralBrowseLink } from "../../../helpers/routes";
-import { getHandle } from "../../../helpers/lemmy";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { hidePost, unhidePost } from "../postSlice";
+import { PostView } from "lemmy-js-client";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  experimental_useEffectEvent as useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import AnimateHeight from "react-animate-height";
-import { useAutohidePostIfNeeded } from "../../feed/PageTypeContext";
 import { useLongPress } from "use-long-press";
-import usePostActions from "../shared/usePostActions";
-import { filterEvents } from "../../../helpers/longPress";
-import { preventOnClickNavigationBug } from "../../../helpers/ionic";
 
-const CustomIonItem = styled(IonItem)`
-  --padding-start: 0;
-  --inner-padding-end: 0;
+import { useAutohidePostIfNeeded } from "#/features/feed/PageTypeContext";
+import { usePostAppearance } from "#/features/post/appearance/PostAppearanceProvider";
+import usePostActions from "#/features/post/shared/usePostActions";
+import SlidingVote from "#/features/shared/sliding/SlidingPostVote";
+import { cx } from "#/helpers/css";
+import { isTouchDevice } from "#/helpers/device";
+import {
+  preventOnClickNavigationBug,
+  stopIonicTapClick,
+} from "#/helpers/ionic";
+import { getHandle } from "#/helpers/lemmy";
+import { filterEvents } from "#/helpers/longPress";
+import { useBuildGeneralBrowseLink } from "#/helpers/routes";
+import store, { useAppDispatch, useAppSelector } from "#/store";
 
-  --border-width: 0;
-  --border-style: none;
-  --background-hover: none;
-`;
+import { hidePost, unhidePost } from "../postSlice";
+import CompactPost from "./compact/CompactPost";
+import LargePost from "./large/LargePost";
+
+import styles from "./Post.module.css";
 
 export interface PostProps {
   post: PostView;
@@ -40,13 +47,14 @@ function Post(props: PostProps) {
   const possiblyPost = useAppSelector(
     (state) => state.post.postById[props.post.post.id],
   );
+
   const potentialPost =
     typeof possiblyPost === "object" ? possiblyPost : undefined;
   const openPostActions = usePostActions(props.post);
 
   const targetIntersectionRef = useRef<HTMLIonItemElement>(null);
 
-  const onFinishHide = useCallback(() => {
+  const onFinishHide = () => {
     hideCompleteRef.current = true;
 
     const isHidden =
@@ -57,40 +65,41 @@ function Post(props: PostProps) {
     } else {
       dispatch(hidePost(props.post.post.id));
     }
-  }, [dispatch, props.post.post.id]);
+  };
 
-  useEffect(() => {
-    // Refs must be used during cleanup useEffect
-    shouldHideRef.current = shouldHide;
-  }, [shouldHide]);
+  const onFinishHideEvent = useEffectEvent(onFinishHide);
 
   useEffect(() => {
     return () => {
       if (!shouldHideRef.current) return;
       if (hideCompleteRef.current) return;
 
-      onFinishHide();
+      onFinishHideEvent();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    // Refs must be used during cleanup useEffect
+    shouldHideRef.current = shouldHide;
+  }, [shouldHide]);
+
   const buildGeneralBrowseLink = useBuildGeneralBrowseLink();
-  const postAppearanceType = useAppSelector(
-    (state) => state.settings.appearance.posts.type,
-  );
+
+  const postAppearance = usePostAppearance();
 
   const onPostLongPress = useCallback(() => {
     openPostActions();
+    stopIonicTapClick();
   }, [openPostActions]);
 
   const bind = useLongPress(onPostLongPress, {
     threshold: 800,
-    cancelOnMovement: true,
+    cancelOnMovement: 15,
     filterEvents,
   });
 
   const postBody = (() => {
-    switch (postAppearanceType) {
+    switch (postAppearance) {
       case "large":
         return <LargePost {...props} post={potentialPost ?? props.post} />;
       case "compact":
@@ -109,8 +118,9 @@ function Post(props: PostProps) {
         className={props.className}
         onHide={() => setShouldHide(true)}
       >
-        {/* href=undefined: Prevent drag failure on firefox */}
-        <CustomIonItem
+        <IonItem
+          mode="ios" // Use iOS style activatable tap highlight
+          className={cx(styles.item, isTouchDevice() && "ion-activatable")}
           detail={false}
           routerLink={buildGeneralBrowseLink(
             `/c/${getHandle(props.post.community)}/comments/${
@@ -125,12 +135,13 @@ function Post(props: PostProps) {
             // and doesn't cause rerender, so do it now.
             autohidePostIfNeeded(props.post);
           }}
+          // href=undefined: Prevent drag failure on firefox
           href={undefined}
           ref={targetIntersectionRef}
           {...bind()}
         >
           {postBody}
-        </CustomIonItem>
+        </IonItem>
       </SlidingVote>
     </AnimateHeight>
   );

@@ -7,12 +7,14 @@ import {
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
-import AppContent from "../../../../features/shared/AppContent";
-import { InsetIonItem } from "./AboutPage";
-import InAppExternalLink from "../../../../features/shared/InAppExternalLink";
 import { useRef } from "react";
-import { useSetActivePage } from "../../../../features/auth/AppContext";
-import AppHeader from "../../../../features/shared/AppHeader";
+
+import { useSetActivePage } from "#/features/auth/AppContext";
+import AppContent from "#/features/shared/AppContent";
+import AppHeader from "#/features/shared/AppHeader";
+import InAppExternalLink, {
+  IonItemInAppExternalLink,
+} from "#/features/shared/InAppExternalLink";
 
 const links = [
   {
@@ -44,10 +46,6 @@ const links = [
     href: "https://vitejs.dev",
   },
   {
-    label: "Linaria",
-    href: "https://linaria.dev",
-  },
-  {
     label: "React",
     href: "https://react.dev",
   },
@@ -76,7 +74,7 @@ export default function AboutThanksPage() {
       <AppContent scrollY fullscreen>
         <IonList inset color="primary">
           {links.map(({ label, href }) => (
-            <InsetIonItem
+            <IonItemInAppExternalLink
               href={href}
               target="_blank"
               rel="noopener noreferrer"
@@ -84,7 +82,7 @@ export default function AboutThanksPage() {
               key={label}
             >
               <IonLabel>{label}</IonLabel>
-            </InsetIonItem>
+            </IonItemInAppExternalLink>
           ))}
         </IonList>
         <p className="ion-padding-start">
